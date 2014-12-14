@@ -1,31 +1,27 @@
-import json
-
-from bson.json_util import dumps
 from datetime import datetime
 from itertools import combinations, izip
 
-from database import connection, db
-from utils import (find_player_code, get_header, is_number, open_file,
-                   path_list_from_url, soup_from_url)
+from database import db, app
+from utils import (
+    find_player_code, get_header, is_number, open_file, path_list_from_url,
+    soup_from_url)
 
 
 def games_from_url(
-        collection, url, reg_id, playoff_id, p1_code=False, p2_code=False,
+        collection_id, url, reg_id, playoff_id, p1_code=False, p2_code=False,
         payload=False):
     """
-    Make a list of dictionaries from a given basketball-reference url.
+    Adds each gamelog from a given basketball-reference url to the database.
 
-    Scrape a url and finds tables for regular season and playoff statistics.
-    Create a dictionary for each row in the table (representing one game). The
+    Scrapes a url and finds tables for regular season and playoff statistics
+    and creates a dictionary for each row (each representing one game). The
     dictionaries contain keys for each stat type in the table header.
 
-    Header is initialized with Player, Year and Season as they are not found
-    on the table, to which the found header is appended. The header also does
-    not properly contain 'HomeAway' and 'WinLoss', so they are added manually.
-
-    If there is a regular list but no playoff list, only the regular list is
-    returned, or vice versa. If both exist, returns a concatenated list of
-    both.
+    The header is initialized with u'Player', u'Year' and u'Season' if
+    collection_id is 'gamelogs' or u'p1', 'p2', u'Season' if 'headtoheads' as
+    they are not found on the table. This is appended to the header found on
+    the table. The header also does not properly contain u'HomeAway' and
+    u'WinLoss', so they are added manually.
     """
 
     if payload is not False:
@@ -38,15 +34,15 @@ def games_from_url(
     playoff_table = table_soup.find(
         'table', attrs={'id': playoff_id})
 
-    if collection == 'gamelogs':
+    if collection_id == 'gamelogs':
         gamelog_header = ([u'Player', u'Year', u'Season'] +
                           get_header(reg_table))
         gamelog_header[8] = u'HomeAway'
         gamelog_header.insert(10, u'WinLoss')
 
-        reg_dict = table_to_dict(
+        reg_dict = add_table_to_db(
             'gamelogs', reg_table, gamelog_header, season='reg', url=url)
-        playoff_dict = table_to_dict(
+        playoff_dict = add_table_to_db(
             'gamelogs', playoff_table, gamelog_header, season='playoff',
             url=url)
     else:
@@ -57,10 +53,10 @@ def games_from_url(
             hth_header[8] = u'HomeAway'
             hth_header.insert(10, u'WinLoss')
 
-            table_to_dict(
+            add_table_to_db(
                 'headtoheads', reg_table, hth_header, season='reg',
                 p1_code=p1_code, p2_code=p2_code)
-            table_to_dict(
+            add_table_to_db(
                 'headtoheads', playoff_table, hth_header, season='playoff',
                 p1_code=p1_code, p2_code=p2_code)
         else:
@@ -74,7 +70,7 @@ def gamelogs_from_url(url):
         'gamelogs', url, 'pgl_basic', 'pgl_basic_playoffs')
 
 
-def hths_from_url(p1, p2):
+def headtoheads_from_url(p1, p2):
     p1_code = find_player_code(p1)
     p2_code = find_player_code(p2)
 
@@ -86,9 +82,30 @@ def hths_from_url(p1, p2):
         p1_code, p2_code, payload)
 
 
-def table_to_dict(
-        collection_id, table, header, season, url=False, p1_code=False,
-        p2_code=False):
+def add_table_to_db(
+        collection_id, table, header, season, url=False,
+        p1_code=False, p2_code=False):
+    """
+    Adds all gamelogs in a table to the database.
+
+    If there is no table returns None, otherwise finds all rows in the table
+    and removes the header row. For each row in row, if the collection_id is
+    'gamelogs', initialized vals with the player_code, year and season.
+    Else, vals is initialized with p1_code, p2_code and season.
+
+    For each column in a row, if collection_id is 'gamelogs', the text is
+    appended to vals.
+    If the text is a:
+        - Date: converts into a datetime object then appends
+        - percentage: converts to float then appends
+        - number: converts to float then appends
+        - string: appends text
+
+        - If empty string, values are added manually based on context.
+
+    A dictionary, gamleog, is created from zipping header and vals. It is then
+    inserted into the correct collection based on the collection_id.
+    """
 
     if not table:
         return None
@@ -111,7 +128,7 @@ def table_to_dict(
                 if col_num == 2:
                     vals.append(datetime.strptime(text, '%Y-%m-%d'))
                 # Percentages
-                elif col_num == 12 or col_num == 15 or col_num == 18:
+                elif col_num == (12, 15, 18):
                     vals.append(0.0 if text == '' else float(text))
                 # PlusMinus
                 elif col_num == 29:
@@ -122,24 +139,26 @@ def table_to_dict(
                     vals.append(text)
             else:
                 # Percentages
-                if col_num == 14 or col_num == 17 or col_num == 20:
+                if col_num == (14, 17, 20):
                     vals.append(0.0 if text == '' else float(text))
                 elif is_number(text):
                     vals.append(float(text))
                 else:
                     vals.append(text)
 
-        # single_season_list.append(dict(izip(header, vals)))
-        collection = connection[collection_id].users
-        collection.insert(dict(izip(header, vals)))
+        gamelog = dict(izip(header, vals))
 
-    return 'All gamelogs added.'
+        with app.app_context():
+            db[collection_id].insert(gamelog)
+            print db[collection_id].find_one(gamelog)
+
+    return 'done.'
 
 
-def create_gamelog_collection():
+def create_gamelogs_collection():
     """
-    Concatenate all the lists of player gamelogs into one list and saves as a
-    JSON file.
+    Calls gamelogs_from_url for each url in gamelog_urls, which contains all
+    seasons for every active player.
     """
 
     gamelog_urls = open_file('./gamelog_urls')
@@ -153,10 +172,8 @@ def create_gamelog_collection():
     return 'ALL GAMELOGS ADDED.'
 
 
-def create_hth_collection():
-    """
-    Concatenate all the lists of headtohead gamelogs into one list and save as
-    a JSON file.
+def create_headtoheads_collection():
+    """ Calls headtoheads_from_url for each combination of two active players.
     """
 
     player_names_urls = open_file('./player_names_urls.json')
@@ -168,8 +185,29 @@ def create_hth_collection():
     all_hth_dict = []
     player_combinations = list(combinations(player_names, 2))
 
-    for num, c in enumerate(combinations):
+    for num, c in enumerate(player_combinations):
         print c
-        hths_from_url(*c)
+        headtoheads_from_url(*c)
 
-    return 'ALL HTHS ADDED.'
+    return 'ALL HEADTOHEADS ADDED.'
+
+
+def create_salaries_collection():
+    """
+    Adds all player salaries to the database. In the salaries table, each row
+    is a player with columns for each year's salary for the duration of the 
+    contract.
+    """
+
+    salary_url = 'http://www.basketball-reference.com/contracts/players.html'
+    table_soup = soup_from_url(salary_url)
+
+    table = table_soup.find(
+        'table', attrs={'id': 'contracts'})
+
+    print table
+
+
+
+
+

@@ -6,6 +6,7 @@ from mongokit import Connection, Document
 
 
 app = Flask(__name__)
+db = MongoKit(app)
 
 class Gamelog(Document):
     __collection__ = 'gamelogs'
@@ -46,7 +47,7 @@ class Gamelog(Document):
     }
     required_fields = ['Opp', 'G', 'Season', 'Age', 'HomeAway', 'Player',
                        'Tm', 'Year', 'Date', 'GS', 'WinLoss', 'Rk']
-    # use_dot_notation = True
+    use_dot_notation = True
 
     def __repr__(self):
         return '<User %r>' % (self.name)
@@ -91,7 +92,7 @@ class Headtohead(Document):
     }
     required_fields = ['Opp', 'G', 'Season', 'Age', 'HomeAway', 'Player',
                        'Tm', 'Year', 'Date', 'GS', 'WinLoss', 'Rk']
-    # use_dot_notation = True
+    use_dot_notation = True
 
     def __repr__(self):
         return '<User %r>' % (self.name)
@@ -109,11 +110,17 @@ class Salary(Document):
     def __repr__(self):
         return '<User %r>' % (self.name)
 
-
-db = MongoKit(app)
 db.register([Gamelog, Headtohead])
 
-connection = Connection()
+@app.errorhandler(400)
+def bad_request(error):
+    return "Bad Request", 400
+
+
+@app.route('/')
+def index():
+    return "Hello...world?"
+
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0')

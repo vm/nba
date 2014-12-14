@@ -1,8 +1,12 @@
 import json
 import pickle
 
-from utils import (find_player_code, get_header, is_number, open_file,
-                   path_list_from_url, soup_from_url)
+from create_db import (
+    games_from_url, gamelogs_from_url, headtoheads_from_url, add_table_to_db,
+    create_gamelogs_collection, create_headtoheads_collection)
+from utils import (
+    find_player_code, get_header, is_number, open_file, path_list_from_url,
+    soup_from_url)
 
 
 class TestUtils(object):
@@ -79,3 +83,7 @@ class TestUtils(object):
 
     '''def test_gamelogs_from_url_real(self):'''
 
+'''
+class TestCreateDatabase(object):
+    def test_gamelogs_from_url:
+'''

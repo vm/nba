@@ -10,7 +10,7 @@ from urlparse import urlparse
 
 
 def get_header(table):
-    """ Return the header of a table.
+    """ Returns the header of a table.
     """
 
     header = []
@@ -31,7 +31,7 @@ def get_header(table):
 
 def open_file(path):
     """
-    Open the file at a given path. If the file extension is .json, loads
+    Opens the file at a given path. If the file extension is .json, loads
     JSON. Else, loads pickle.
     """
 
@@ -43,7 +43,7 @@ def open_file(path):
 
 
 def is_number(s):
-    """ Check if a string is a number.
+    """ Checks if a string is a number.
     """
 
     try:
@@ -55,7 +55,7 @@ def is_number(s):
 
 def soup_from_url(url, payload=False):
     """
-    Use BeautifulSoup to scrape a website. Returns the text from the
+    Uses BeautifulSoup to scrape a website. Returns the text from the
     requests result. If there is a payload, use it as a GET parameter.
     """
 
@@ -64,14 +64,13 @@ def soup_from_url(url, payload=False):
             r = requests.get(url, params=payload)
         else:
             r = requests.get(url)
-
         return BeautifulSoup(r.text)
     except:
         return None
 
 
 def find_player_code(player):
-    """ Find a player code given a player name.
+    """ Finds a player code given a player name.
     """
     player_names_urls = open_file('./player_names_urls.json')
 
@@ -82,14 +81,13 @@ def find_player_code(player):
 
     player_url_path = urlparse(player_url).path
     bn = basename(player_url_path)
-
     player_code = os.path.splitext(bn)[0]
 
     return player_code
 
 
 def path_list_from_url(url):
-    """ Split url and return a list of path items.
+    """ Splits a url and returns a list of path items.
     """
 
     o = urlparse(url)
@@ -99,7 +97,7 @@ def path_list_from_url(url):
 
 def save_player_names_urls():
     """
-    Save a dictionary of player names and basketball-reference home urls.
+    Saves a dictionary of player names and basketball-reference home urls.
 
     Finds the directory of players with last name starting with a specific
     letter for every lowercase letter. Current names have strong tags, so
@@ -113,7 +111,6 @@ def save_player_names_urls():
             'http://www.basketball-reference.com/players/%s/' % (letter))
 
         current_names = letter_page.findAll('strong')
-
         for n in current_names:
             name_data = n.children.next()
             names.append(
@@ -142,7 +139,6 @@ def save_gamelog_urls():
     player_names_urls = open_player_names_urls()
 
     gamelog_urls = []
-
     for name, url in player_names_urls.items():
         table_soup = soup_from_url(url)
 
@@ -153,7 +149,6 @@ def save_gamelog_urls():
 
         for table in all_tables:
             url = table.find('td')
-
             for link in url.findAll("a"):
                 gamelog_urls.append(
                     'http://www.basketball-reference.com' +
