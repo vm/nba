@@ -10,13 +10,22 @@ from urlparse import urlparse
 
 
 def get_header(table):
-    """ Returns the header of a table.
     """
+    Finds and returns the header of a table.
 
+    Args:
+        table: HTML table of gamelog stats for one year. Can be a regular
+            season or playoff table, or regular gamelog or headtohead gamelog
+            table.
+
+    Returns:
+        list of str if table, None otherwise.
+
+    """
     header = []
     try:
         for th in table.findAll('th'):
-            col = th.getText()
+            col = str(th.getText())
             col = col.replace('%', 'P') \
                      .replace('3', 'T') \
                      .replace('+/-', 'PlusMinus')
@@ -29,38 +38,48 @@ def get_header(table):
     return header
 
 
-def open_file(path):
-    """
-    Opens the file at a given path. If the file extension is .json, loads
-    JSON. Else, loads pickle.
-    """
-
-    with open(path) as f:
-        if path.endswith('.json'):
-            return json.load(f)
-        else:
-            return pickle.load(f)
-
-
 def is_number(s):
-    """ Checks if a string is a number.
     """
+    Checks if a string is a number.
 
+    Args:
+        s (str): a string containing a number.
+
+    Returns:
+        bool: True if a string is a number, false otherwise.
+
+    Raises:
+        NotImplementedError: If s is not a string.
+
+    """
+    if isinstance(s, str) is True:
+        try:
+            float(s)
+            return True
+        except ValueError:
+            return False
+    else:
+        raise NotImplementedError('Must enter a string.')
+
+
+def soup_from_url(url, payload=None):
+    """
+    Uses BeautifulSoup to scrape a website to get its soup.
+
+    Args:
+        url (string): Basketball-Reference url consisting of gamelogs for a
+            single year of player stats.
+        payload (dict, optional): Payload for a Requests url request. In this
+            case, only headtohead_url requires a payload, which contains the
+            keys p1, p2 and request.
+
+    Returns:
+        BeautifulSoup formatted HTML of scraped url.
+
+
+    """
     try:
-        float(s)
-        return True
-    except ValueError:
-        return False
-
-
-def soup_from_url(url, payload=False):
-    """
-    Uses BeautifulSoup to scrape a website. Returns the text from the
-    requests result. If there is a payload, use it as a GET parameter.
-    """
-
-    try:
-        if payload is not False:
+        if payload:
             r = requests.get(url, params=payload)
         else:
             r = requests.get(url)
@@ -70,9 +89,23 @@ def soup_from_url(url, payload=False):
 
 
 def find_player_code(player):
-    """ Finds a player code given a player name.
     """
-    player_names_urls = open_file('./player_names_urls.json')
+    Finds a player code given a player name.
+
+    Args:
+        player (str): Name of a player to look up in player_names_urls.
+
+    Returns:
+        str: player_code of player if successful.
+        None: if player lookup raises KeyError.
+
+    Todo:
+        Use MongoDB as a semi-intelligent cache, inserting and deleting
+            players as needed.
+
+    """
+    with open('./player_names_urls.json') as f:
+        player_names_urls = json.load(f)
 
     try:
         player_url = player_names_urls[player]
@@ -86,13 +119,14 @@ def find_player_code(player):
     return player_code
 
 
-def path_list_from_url(url):
-    """ Splits a url and returns a list of path items.
+def path_components_of_url(url):
     """
+    Splits a url and returns a list of components of the url's path.
 
+    """
     o = urlparse(url)
-    path_list = o.path.split('/')
-    return path_list
+    path_components = o.path.split('/')
+    return path_components
 
 
 def save_player_names_urls():
@@ -101,11 +135,10 @@ def save_player_names_urls():
 
     Finds the directory of players with last name starting with a specific
     letter for every lowercase letter. Current names have strong tags, so
-    finds all current_names. 
+    finds all current_names.
+
     """
-
     names = []
-
     for letter in string.ascii_lowercase:
         letter_page = soup_from_url(
             'http://www.basketball-reference.com/players/%s/' % (letter))
@@ -126,14 +159,13 @@ def save_player_names_urls():
 
 def save_gamelog_urls():
     """
-    Return list of gamelog urls with every year of every current player.
+    Returns list of gamelog urls with every year of every current player.
 
-    Open player_names_urls, a JSON file containing a list of dictionaries with
-    key values Name and URL. For each dictionary in the list, url is scraped
-    and table containing the player totals is stored. Find each single season
-    table in the totals table. In each single season table, gamelog url found
-    by searching for url column and finding the link
-    text.
+    Opens player_names_urls, a JSON file containing a list of dictionaries
+    with key values Name and URL. For each dictionary in the list, url is
+    scraped and the table containing the player totals is stored. Finds each
+    single season table in the totals table. In each single season table, the
+    gamelog url found by searching for url column and finding the link text.
     """
 
     player_names_urls = open_player_names_urls()

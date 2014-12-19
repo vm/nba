@@ -7,14 +7,23 @@
 ._*
 .sass-cache
 .coverage*
+.installed.cfg
 
 /bin
 /tools
 /src
 /man
 */node_modules
+src/*.egg-info
 
 build
 include
 installs
 lib
+bin
+develop-eggs
+dist
+downloads
+eggs
+parts
+lib64

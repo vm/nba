@@ -7,19 +7,27 @@ to salaries collection.
 
 Todo:
     - Threading to download lots of pages at once.
+    - Add Twitter API to find inactives
+    - Add Draftkings/FanDuel daily prices (and projections?)
+    - Add salary data
+    - Create functions to calculate stats from data
+    - Instead of p1, p2, player in headtoheads, remove Player if it is the
+      same as p1; otherwise, convert p1 to Player and p2 to p1
+    - Create Flask-mongokit functions to get data from database
+    - Should I save Player as player_code or player name string?
+    - Raise errors instead of returning None?
 """
 
-import create_db
+import sys
+
+from create_db import (find_gamelogs_from_url, find_basic_gamelogs_from_url,
+    find_headtohead_gamelogs_from_url, create_gamelogs_collection,
+    create_headtoheads_collection)
 
 
 def main():
-    # print create_db.headtoheads_from_url('Kevin Durant', 'LeBron James')
-    # print create_db.create_headtoheads_collection()
-    # print create_db.gamelogs_from_url(
-    #     'http://basketball-reference.com/players/b/bealbr01/gamelog/2014')
-    # print create_db.create_gamelogs_collection()
-    print create_db.create_salaries_collection()
+    pass
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv)
