@@ -3,7 +3,7 @@ from mongokit import Connection, Document
 
 connection = Connection()
 
-@connection.register
+# @connection.register
 class Gamelog(Document):
     __collection__ = 'gamelogs'
     structure = {
@@ -20,7 +20,6 @@ class Gamelog(Document):
         'AST': float,
         'Season': str,
         'HomeAway': str,
-        'FTP': float,
         'Date': datetime,
         'PF': float,
         'WinLoss': float,
@@ -32,26 +31,24 @@ class Gamelog(Document):
         'TRB': float,
         'FTA': float,
         'BLK': float,
-        'FGP': float,
         'PlusMinus': float,
         'PTS': float,
         'Player': str,
         'MP': float,
         'Year': int,
-        'ORB': float,
-        'TPP': float
+        'ORB': float
     }
     required_fields = ['Opp', 'G', 'Season', 'Age', 'HomeAway', 'Player',
                        'Tm', 'Year', 'Date', 'GS', 'WinLoss', 'Rk']
     use_dot_notation = True
 
 
-@connection.register
+# @connection.register
 class Headtohead(Document):
     __collection__ = 'headtoheads'
     structure = {
-        'player_name_1': str,
-        'player_name_2': str,
+        'Player': str,
+        'Opp_Player': str,
         'FT': float,
         'TP': float,
         'TOV': float,
@@ -64,7 +61,6 @@ class Headtohead(Document):
         'AST': float,
         'Season': str,
         'HomeAway': str,
-        'FTP': float,
         'Date': datetime,
         'PF': float,
         'WinLoss': float,
@@ -74,20 +70,16 @@ class Headtohead(Document):
         'TRB': float,
         'FTA': float,
         'BLK': float,
-        'FGP': float,
         'PTS': float,
-        'Player': str,
         'MP': float,
-        'ORB': float,
-        'TPP': float
+        'ORB': float
     }
-    required_fields = ['player_name_1', 'player_name_2', 'Opp', 'Season',
-                       'HomeAway', 'Player', 'Tm', 'Date', 'GS', 'WinLoss',
-                       'Rk']
+    required_fields = ['Player', 'Opp_Player', 'Opp', 'Season', 'HomeAway',
+                       'Tm', 'Date', 'GS', 'WinLoss', 'Rk']
     use_dot_notation = True
 
 
-@connection.register
+# @connection.register
 class Salary(Document):
     __collection__ = 'salaries'
     structure = {

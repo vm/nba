@@ -100,8 +100,8 @@ def find_player_code(player):
         None: if player lookup raises KeyError.
 
     Todo:
-        Use MongoDB as a semi-intelligent cache, inserting and deleting
-            players as needed.
+        Use MongoDB as a semi-intelligent cache, instatiating players as
+            items, inserting and deleting players as needed.
 
     """
     with open('./player_names_urls.json') as f:

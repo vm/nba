@@ -28,7 +28,7 @@ def find_gamelogs_from_url(
     collection_id is 'gamelogs' or 'p1', 'p2', 'Season' if 'headtoheads' as
     they are not found on the table. This is appended to the header found on
     the table. The header also does not properly contain 'HomeAway' and
-    'WinLoss', so they are added manually.
+    'WinLoss', so they are added manually. All percentages are removed.
 
     Args:
         collection_id (str): Name of a collection in the nba database.
@@ -67,6 +67,10 @@ def find_gamelogs_from_url(
         gamelog_header[8] = 'HomeAway' # Replaces an empty column title.
         gamelog_header.insert(10, 'WinLoss') # Inserts a missing column title.
 
+        remove_items = ['FGP', 'FTP', 'TPP']
+        for item in sorted(remove_items, reverse=True):
+            gamelog_header.remove(item)
+
         # Adds all gamelogs in regular season table to database.
         add_gamelogs_in_table_to_db(
             collection_id='gamelogs',
@@ -87,10 +91,14 @@ def find_gamelogs_from_url(
         # Only adds gamelogs to database if a header is found.
         # If no header, that means there are no matchups between the players.
         if hth_header_add:
-            hth_header = (['player_name_1', 'player_name_2', 'Season'] +
+            hth_header = (['player_code_1', 'player_code_2', 'Season'] +
                           hth_header_add)
-            hth_header[7] = 'HomeAway' # Replaces an empty column title.
-            hth_header.insert(9, 'WinLoss') # Inserts a missing column title.
+            hth_header[7] = 'HomeAway' # Replaces empty column.
+            hth_header.insert(9, 'WinLoss') # Inserts missing column.
+
+            remove_items = ['FGP', 'FTP', 'TPP']
+            for item in sorted(remove_items, reverse=True):
+                hth_header.remove(item)
 
             # Adds all gamelogs in regular season table to database.
             add_gamelogs_in_table_to_db(
@@ -120,8 +128,9 @@ def find_basic_gamelogs_from_url(gamelog_url):
     initializes the arguments in find_gamelogs_from_url and calls it as it
     is an abstraction.
 
-    gamelog_url (str): basketball-reference url consisting of gamelogs for a
-            single year of player stats.
+    Args:
+        gamelog_url (str): basketball-reference url consisting of gamelogs for
+            a single year of player stats.
 
     """
     return find_gamelogs_from_url(
@@ -181,7 +190,8 @@ def add_gamelogs_in_table_to_db(
     If there is no table returns None, otherwise finds all rows in the table
     and removes the header row. For each row in row, if the collection_id is
     'gamelogs', initialized stat_values with the player_code, year and season.
-    Else, stat_values is initialized with player_code_1, player_code_2 and season.
+    Else, stat_values is initialized with player_code_1, player_code_2 and
+    season.
 
     For each column in a row, if collection_id is 'gamelogs', the text is
     appended to stat_values, a list of all the stat values.
@@ -230,26 +240,35 @@ def add_gamelogs_in_table_to_db(
 
         # Each column is one stat type.
         for col_num, col in enumerate(row.findAll('td')):
+            # print col_num
             text = str(col.getText())
+            # print text
 
             # Stat values are converted by position based on the collection.
             if collection_id == 'gamelogs':
-                if col_num == 2: # Date
+                # Date
+                if col_num == 2:
                     stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
-                elif col_num == (12, 15, 18): # Percentages
-                    stat_values.append(0.0 if text == '' else float(text))
-                elif col_num == 29: # PlusMinus
-                    stat_values.append('0' if text == '' else text)
-                elif is_number(text): # Number
+                # Percentages
+                elif col_num == 12 or col_num == 15 or col_num == 18:
+                    pass
+                # PlusMinus
+                elif col_num == 29:
+                    stat_values.append(0 if text == '' else float(text))
+                # Number
+                elif is_number(text):
                     stat_values.append(float(text))
                 else:
                     stat_values.append(text)
             if collection_id == 'headtoheads':
-                if col_num == 2: # Date
+                # Date
+                if col_num == 2:
                     stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
-                if col_num == (14, 17, 20): # Percentages
-                    stat_values.append(0.0 if text == '' else float(text))
-                elif is_number(text): # Number
+                # Percentages
+                elif col_num == 11 or col_num == 14 or col_num == 17:
+                    pass
+                # Number
+                elif is_number(text):
                     stat_values.append(float(text))
                 else:
                     stat_values.append(text)
@@ -258,6 +277,21 @@ def add_gamelogs_in_table_to_db(
         # a dictionary. This is a dict of gamelog stats for one game with keys
         # for each stat type.
         gamelog = dict(izip(header, stat_values))
+
+        # Instead of player_code_1, player_code_2, Player in headtoheads,
+        # removes replaces Player key to player_code_1 if values equal.
+        # Otherwise, convert Player to player_code_2 and player_code_1 to
+        # Opp_Player.
+        if collection_id == 'headtoheads':
+            player_code = find_player_code(gamelog['Player'])
+            if player_code == gamelog['player_code_1']:
+                gamelog.pop('Player', None)
+                gamelog['Player'] = gamelog.pop('player_code_1')
+                gamelog['Opp_Player'] = gamelog.pop('player_code_2')
+            else:
+                gamelog.pop('Player', None)
+                gamelog['Player'] = gamelog.pop('player_code_2')
+                gamelog['Opp_Player'] = gamelog.pop('player_code_1')
 
         # Initializes connection to the correct collection in database.
         collection = connection[collection_id].users
@@ -282,7 +316,8 @@ def create_gamelogs_collection():
                '%  --  ' +
                url)
 
-        gamelogs_from_url(url) # Adds gamelogs from a url to the database.
+        # Adds gamelogs from a url to the database.
+        find_basic_gamelogs_from_url(url)
 
     return 'ALL GAMELOGS ADDED.'
 
@@ -295,9 +330,9 @@ def create_headtoheads_collection():
     with open('./player_names_urls.json') as f:
         player_names_urls = json.load(f)
 
-    player_names = []
-    for name, url in player_names_urls.items():
-        player_names.append(name)
+    player_names = [name for name, url in player_names_urls.items]
+    #for name, url in player_names_urls.items():
+    #    player_names.append(name)
 
     player_combinations = list(combinations(player_names, 2))
     for num, c in enumerate(player_combinations):
@@ -308,7 +343,7 @@ def create_headtoheads_collection():
 
         # Adds headtohead gamelogs for a combination the database if the
         # combo exists.
-        headtoheads_from_url(*c)
+        find_headtohead_gamelogs_from_url(*c)
 
 
     return 'ALL HEADTOHEADS ADDED.'

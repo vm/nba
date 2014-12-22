@@ -1,5 +1,6 @@
 import json
 import pickle
+import pytest
 
 from create_db import (find_gamelogs_from_url, find_basic_gamelogs_from_url,
     find_headtohead_gamelogs_from_url, add_gamelogs_in_table_to_db,
@@ -16,11 +17,16 @@ def test_is_number_false():
     assert is_number('MIA') is False
 
 
-def test_path_list_from_url():
-    path_list = ['', 'players', 'd', 'duranke01', 'gamelog', '2014', '']
+def test_is_number_string():
+    with pytest.raises(NotImplementedError):
+        is_number(56)
+
+
+def test_path_components_from_url():
+    path_components = ['', 'players', 'd', 'duranke01', 'gamelog', '2014', '']
     assert path_components_of_url(
         'http://www.basketball-reference.com/players/d/duranke01/' +
-            'gamelog/2014/') == path_list
+            'gamelog/2014/') == path_components
 
 
 def test_find_player_code_real_player():
@@ -36,8 +42,7 @@ def test_get_gamelog_header():
         'http://www.basketball-reference.com/players/d/duranke01/' +
             'gamelog/2015/')
 
-    reg_table = gamelog_soup.find(
-        'table', attrs={'id': 'pgl_basic'})
+    reg_table = gamelog_soup.find('table', attrs={'id': 'pgl_basic'})
 
     assert get_header(reg_table) == \
         [u'Rk', u'G', u'Date', u'Age', u'Tm', u'', u'Opp', u'GS', u'MP',
@@ -51,8 +56,7 @@ def test_get_hth_header():
         'http://www.basketball-reference.com/play-index/h2h_finder.cgi?' +
             'request=1&p1=jamesle01&p2=duranke01#stats_playoffs')
 
-    reg_table = hth_soup.find(
-        'table', attrs={'id': 'stats_games'})
+    reg_table = hth_soup.find('table', attrs={'id': 'stats_games'})
 
     assert get_header(reg_table) == \
         [u'Rk', u'Player', u'Date', u'Tm', u'', u'Opp', u'GS', u'MP',
@@ -72,8 +76,7 @@ def test_get_hth_header_attribute_error():
         'http://www.basketball-reference.com/play-index/h2h_finder.cgi?' +
             'request=1&p1=kiddja01&p2=napiersh01#stats_playoffs')
 
-    reg_table = gamelog_soup.findAll(
-        'table', attrs={'id': 'stats_games'})
+    reg_table = gamelog_soup.findAll('table', attrs={'id': 'stats_games'})
 
     assert get_header(reg_table) is None
 
