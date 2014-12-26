@@ -1,6 +1,6 @@
 import arrow
-import bson.json_util
 import numpy
+from bson.json_util import dumps
 from mongokit import Connection
 from sortedcontainers import SortedListWithKey, SortedList
 
@@ -35,27 +35,23 @@ class Calculate(object):
         return
 
     def find_stats(self, stat):
-        if connection.gamelogs.users.find_one(self.query):
-            return [
-                gamelog[stat]
-                for gamelog in self.remove_dnps(self.gamelogs)
-            ]
-        else:
-            return None
+        return [
+            gamelog[stat]
+            for gamelog in self.remove_dnps()
+        ]
 
-    def remove_dnps(self, gamelogs):
-        if gamelogs:
-            return [
-                gamelog
-                for gamelog in gamelogs
-                if (gamelog['GS'] != 'Inactive'
-                    and
-                    gamelog['GS'] != 'Did Not Play'
-                    and
-                    gamelog['GS'] != 'Player Suspended')
-            ]
-        else:
-            return None
+    def remove_dnps(self):
+        return [
+            gamelog
+            for gamelog in self.gamelogs
+            if (
+                gamelog['GS'] != 'Inactive'
+                and
+                gamelog['GS'] != 'Did Not Play'
+                and
+                gamelog['GS'] != 'Player Suspended'
+                )
+        ]
 
     def stat_avg(self, stat):
         stats = self.find_stats(stat)
@@ -77,7 +73,7 @@ class Calculate(object):
         dfs_scores = [
             dict(score=self.calc_dfs_score_from_gamelog(gamelog),
                  gamelog=gamelog)
-            for gamelog in self.remove_dnps(self.gamelogs)
+            for gamelog in self.remove_dnps()
         ]
 
         return SortedListWithKey(dfs_scores, key=lambda val: -val['score'])
@@ -95,7 +91,7 @@ class Calculate(object):
                 str(score['gamelog']['Date'].strftime("%m/%d/%Y")) +
                 ' -- ' +
                 str(score['score']))
-            print bson.json_util.dumps(score['gamelog'], indent=4)
+            print dumps(score['gamelog'], indent=4)
             print
 
     def calc_dfs_score_from_gamelog(self, gamelog):
@@ -106,38 +102,47 @@ class Calculate(object):
         BLK = gamelog['BLK']
         TOV = gamelog['TOV']
 
-        if self.site == 'DraftKings':
+        if self.site == 'draftkings':
             PTS = gamelog['PTS']
-
             sorted_stats = SortedListWithKey(
-                list(PTS, AST, TRB, STL, BLK),
+                [PTS, AST, TRB, STL, BLK],
                 key=lambda val: -val)
-            DDorTD = self.check_double_triple_double(sorted_stats)
+
+            DDorTD = self.is_double_triple_double(sorted_stats)
 
             score = (PTS * 1.00 + TP  * 0.50 + AST * 1.50 + TRB * 1.25 +
                      STL * 2.00 + BLK * 2.00 - TOV * 0.50 + DDorTD)
 
-        elif self.site == 'Fanduel':
+            return score
+
+        elif self.site == 'fanduel':
             FG  = gamelog['FG'] - TP
             FT  = gamelog['FT']
 
             score = (FG  * 2.00 + TP  * 3.00 + FT  * 1.00 + AST * 1.50 +
                      TRB * 1.20 + STL * 2.00 + BLK * 2.00 - TOV * 1.00)
 
-        return score
+            return score
 
 
 class QueryHelpers(object):
-    def __init__(self, start=None, end=None):
-        self.days_range = days_range
+    def __init__(self, start, end='now'):
+        self.start = start
+        self.end = end
 
     def datetime_range(self):
-        start = arrow.utcnow().replace(days=self.days_range).datetime
-        end = arrow.utcnow().datetime
+        start = arrow.get(self.start).datetime.replace(tzinfo=None)
+        end = arrow.get(self.end).datetime.replace(tzinfo=None)
         return {'Date': {'$gte': start, '$lt': end}}
 
 
 if __name__ == '__main__':
-    my_query = QueryHelpers(-365).datetime_range()
-    calculate1 = Calculate(my_query, "DraftKings")
-    calculate1.top_dfs_scores(5)
+    my_query = {'Opp': 'WAS'}
+    my_query.update(QueryHelpers('2014-12-21', '2014-12-22').datetime_range())
+    # print QueryHelpers('2014-12-20', '2014-12-22').datetime_range()
+    calculate_dk = Calculate(my_query, "draftkings")
+    print calculate_dk.remove_dnps()
+    # print calculate_dk.create_dfs_scores_sorted_list()
+    # calculate_dk.top_dfs_scores(3)
+    # print calculate_dk.find_stats('PTS')
+

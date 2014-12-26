@@ -4,6 +4,7 @@ import pickle
 import requests
 import string
 from bs4 import BeautifulSoup
+from collections import OrderedDict
 from datetime import datetime
 from itertools import combinations, izip
 from mongokit import Connection, Document
@@ -283,10 +284,10 @@ def add_gamelogs_in_table_to_db(
     appended to stat_values, a list of all the stat values.
 
     If the text is a:
-        Date: Converts to a datetime object then appends.
-        Percentage: Converts to float then appends.
-        Number: Converts to float then appends.
-        String: Appends text.
+        Date: Converts to a datetime object
+        Percentage: Converts to float
+        Number: Converts to float
+        String: Keeps string
 
         If empty column, base values are added contextually.
 
@@ -313,7 +314,7 @@ def add_gamelogs_in_table_to_db(
         return None
 
     rows = table.findAll('tr')[1:]
-    rows = [r for r in rows if len(r.findAll('td')) > 0]  # Rows except header.
+    rows = [r for r in rows if len(r.findAll('td')) > 0]  # Rows except header
 
     # Each row is one gamelog.
     for row in rows:
@@ -327,9 +328,7 @@ def add_gamelogs_in_table_to_db(
 
         # Each column is one stat type.
         for col_num, col in enumerate(row.findAll('td')):
-            # print col_num
             text = str(col.getText())
-            # print text
 
             # Stat values are converted by position based on the collection.
             if collection_id == 'gamelogs':
@@ -385,8 +384,8 @@ def add_gamelogs_in_table_to_db(
         collection = connection[collection_id].users
         find_one = collection.find_one(gamelog)
         if not find_one:
-            collection.insert(gamelog)  # Inserts the gamelog dictionary to db.
-            print gamelog
+            collection.insert(gamelog)  # Inserts the gamelog dictionary to db
+            out.write(gamelog)
 
     return
 
@@ -504,20 +503,21 @@ def get_header(table):
         list of str if table, None otherwise.
 
     """
-    header = []
     try:
-        for th in table.findAll('th'):
-            col = str(th.getText())
-            col = col.replace('%', 'P') \
-                     .replace('3', 'T') \
-                     .replace('+/-', 'PlusMinus')
-
-            if col not in header:
-                header.append(col)
+        header = [
+            get_column_title(str(th.getText()))  # Get header text
+            for th in table.findAll('th')  # Find all header titles
+        ]
+        return list(OrderedDict.fromkeys(header))  # Remove duplicate items
     except AttributeError:
         return None
 
-    return header
+
+def get_column_title(th):
+    col = th.replace('%','P') \
+            .replace('3','T') \
+            .replace('+/-','PlusMinus')
+    return col
 
 
 def is_number(s):
@@ -590,22 +590,17 @@ def get_gamelog_urls(player_url):
     single season table in the totals table. In each single season table, the
     gamelog url found by searching for url column and finding the link text.
     """
-    print player_url
     table_soup = soup_from_url(player_url)
 
     totals_table = table_soup.find('table', attrs={'id': 'totals'})
     all_tables = totals_table.findAll('tr', attrs={'class': 'full_table'})
 
-    gamelog_urls = []
-    for table in all_tables:
-        table_url = table.find('td')
-        for link in table_url.findAll("a"):
-            gamelog_urls.append('http://www.basketball-reference.com' +
-                                link.get("href"))
-
-    return gamelog_urls
+    return [
+        'http://www.basketball-reference.com' + link.get("href")
+        for table in all_tables
+        for link in table.find('td').findAll("a")
+    ]
 
 
 if __name__ == '__main__':
-    # connection.register([Player])
-    print create_gamelogs_collection()
+    pass
