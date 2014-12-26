@@ -3,11 +3,10 @@ import os
 import pickle
 import requests
 import string
-
 from bs4 import BeautifulSoup
 from datetime import datetime
 from itertools import combinations, izip
-from mongokit import Connection
+from mongokit import Connection, Document
 from posixpath import basename
 from urlparse import urlparse
 
@@ -88,13 +87,15 @@ class Headtohead(Document):
     use_dot_notation = True
 
 
-class Salary(Document):
-    __collection__ = 'salaries'
+class Player(Document):
+    __collection__ = 'players'
     structure = {
         'Player': str,
-        'Salary': dict
+        'Salary': dict,
+        'URL': str,
+        'GamelogURLs': list
     }
-    required_fields = ['Player', 'Salary']
+    required_fields = ['Player', 'URL', 'GamelogURLs']
     use_dot_notation = True
 
 
@@ -398,8 +399,9 @@ def create_gamelogs_collection():
     seasons for every active player.
 
     """
-    with open('./gamelog_urls') as f:
-        gamelog_urls = pickle.load(f)
+    gamelog_urls = []
+    for player in connection['players'].users.find({}):
+        gamelog_urls.extend(player['GamelogURLs'])
 
     for num, url in enumerate(gamelog_urls):
         # Print percent completion and current url.
@@ -418,12 +420,9 @@ def create_headtoheads_collection():
     Calls headtoheads_from_url for each combination of two active players.
 
     """
-    with open('./player_names_urls.json') as f:
-        player_names_urls = json.load(f)
-
     player_names = [
-        name
-        for name, url in player_names_urls.items
+        player['Player']
+        for player in connection['players'].users.find({})
     ]
 
     player_combinations = list(combinations(player_names, 2))
@@ -440,13 +439,20 @@ def create_headtoheads_collection():
     return 'ALL HEADTOHEADS ADDED.'
 
 
-def create_salaries_collection():
+def create_players_collection():
     """
+    Saves a dictionary of player names and basketball-reference home urls.
+
+    Finds the directory of players with last name starting with a specific
+    letter for every lowercase letter. Current names have strong tags, so
+    finds all current_names.
+
     Adds all player salaries to the database. In the salaries table, each row
     is a player with columns for each year's salary for the duration of the
     contract.
 
     """
+    '''
     salary_url = 'http://www.basketball-reference.com/contracts/players.html'
     table_soup = soup_from_url(salary_url)
 
@@ -454,6 +460,37 @@ def create_salaries_collection():
         'table', attrs={'id': 'contracts'})
 
     print table
+    '''
+
+    names = []
+    for letter in string.ascii_lowercase:
+        letter_page = soup_from_url(
+            'http://www.basketball-reference.com/players/%s/' % (letter))
+
+        current_names = letter_page.findAll('strong')
+        for n in current_names:
+            name_data = n.children.next()
+            names.append(
+                (name_data.contents[0],
+                 'http://www.basketball-reference.com' +
+                 name_data.attrs['href']))
+
+    for name, player_url in names:
+        gamelog_urls = get_gamelog_urls(player_url)
+        # salaries = 'WORK ON THIS'
+        name = find_player_code(name)
+
+        player = dict(
+            Player=name,
+            # Salary=salaries,
+            GamelogURLs=gamelog_urls,
+            URL=player_url)
+
+        collection = connection['players'].users
+        collection.insert(player)
+        print collection.find_one(player)
+
+    return "ALL PLAYERS ADDED."
 
 
 def get_header(table):
@@ -551,13 +588,9 @@ def find_player_code(player):
             items, inserting and deleting players as needed.
 
     """
-    with open('./player_names_urls.json') as f:
-        player_names_urls = json.load(f)
 
-    try:
-        player_url = player_names_urls[player]
-    except KeyError:
-        return None
+    player_url = connection['players'].users.find_one(
+        find_player_code(player))
 
     player_url_path = urlparse(player_url).path
     bn = basename(player_url_path)
@@ -576,35 +609,7 @@ def path_components_of_url(url):
     return path_components
 
 
-def save_player_names_urls():
-    """
-    Saves a dictionary of player names and basketball-reference home urls.
-
-    Finds the directory of players with last name starting with a specific
-    letter for every lowercase letter. Current names have strong tags, so
-    finds all current_names.
-
-    """
-    names = []
-    for letter in string.ascii_lowercase:
-        letter_page = soup_from_url(
-            'http://www.basketball-reference.com/players/%s/' % (letter))
-
-        current_names = letter_page.findAll('strong')
-        for n in current_names:
-            name_data = n.children.next()
-            names.append(
-                (name_data.contents[0],
-                 'http://www.basketball-reference.com' +
-                 name_data.attrs['href']))
-
-    with open('./player_names_and_urls.json', 'w') as f:
-        json.dump(dict(names), f)
-
-    return "PLAYER NAMES AND URLS SAVED."
-
-
-def save_gamelog_urls():
+def get_gamelog_urls(player_url):
     """
     Returns list of gamelog urls with every year of every current player.
 
@@ -614,23 +619,22 @@ def save_gamelog_urls():
     single season table in the totals table. In each single season table, the
     gamelog url found by searching for url column and finding the link text.
     """
+    print player_url
+    table_soup = soup_from_url(player_url)
 
-    player_names_urls = open_player_names_urls()
+    totals_table = table_soup.find('table', attrs={'id': 'totals'})
+    all_tables = totals_table.findAll('tr', attrs={'class': 'full_table'})
 
     gamelog_urls = []
-    for name, url in player_names_urls.items():
-        table_soup = soup_from_url(url)
+    for table in all_tables:
+        table_url = table.find('td')
+        for link in table_url.findAll("a"):
+            gamelog_urls.append('http://www.basketball-reference.com' +
+                                link.get("href"))
 
-        totals_table = table_soup.find('table', attrs={'id': 'totals'})
-        all_tables = totals_table.findAll('tr', attrs={'class': 'full_table'})
+    return gamelog_urls
 
-        for table in all_tables:
-            url = table.find('td')
-            for link in url.findAll("a"):
-                gamelog_urls.append('http://www.basketball-reference.com' +
-                                    link.get("href"))
 
-    with open('./gamelog_urls', 'wb') as f:
-        pickle.dump(gamelog_urls, f)
-
-    return 'GAMELOG URLS SAVED.'
+if __name__ == '__main__':
+    connection.register([Player])
+    print create_players_collection()
