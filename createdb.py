@@ -48,8 +48,8 @@ class Gamelog(Document):
         'Year': int,
         'ORB': float
     }
-    required_fields = ['Opp', 'G', 'Season', 'Age', 'HomeAway', 'Player',
-                       'Tm', 'Year', 'Date', 'GS', 'WinLoss', 'Rk']
+    required_fields = ['Opp', 'Season', 'G',  'Age', 'HomeAway', 'Player',
+                       'Tm',  'Year',   'Rk', 'GS',  'WinLoss',  'Date']
     use_dot_notation = True
 
 
@@ -83,8 +83,8 @@ class Headtohead(Document):
         'MP': float,
         'ORB': float
     }
-    required_fields = ['Player', 'Opp_Player', 'Opp', 'Season', 'HomeAway',
-                       'Tm', 'Date', 'GS', 'WinLoss', 'Rk']
+    required_fields = ['Player',  'Opp_Player', 'Opp', 'Season', 'Tm',
+                       'WinLoss', 'HomeAway',   'GS',  'Date',   'Rk']
     use_dot_notation = True
 
 
@@ -153,8 +153,8 @@ def find_gamelogs_from_url(
     if collection_id == 'gamelogs':
         gamelog_header = (['Player', 'Year', 'Season'] +
                           get_header(reg_table))
-        gamelog_header[8] = 'HomeAway' # Replaces an empty column title.
-        gamelog_header.insert(10, 'WinLoss') # Inserts a missing column title.
+        gamelog_header[8] = 'HomeAway'  # Replaces an empty column title.
+        gamelog_header.insert(10, 'WinLoss')  # Inserts a missing column title.
 
         remove_items = ['FGP', 'FTP', 'TPP']
         for item in sorted(remove_items, reverse=True):
@@ -167,7 +167,7 @@ def find_gamelogs_from_url(
             header=gamelog_header,
             season='reg',
             url=url)
-        #Adds all gamelogs in playoff table to database.
+        # Adds all gamelogs in playoff table to database.
         add_gamelogs_in_table_to_db(
             collection_id='gamelogs',
             table=playoff_table,
@@ -182,8 +182,8 @@ def find_gamelogs_from_url(
         if hth_header_add:
             hth_header = (['player_code_1', 'player_code_2', 'Season'] +
                           hth_header_add)
-            hth_header[7] = 'HomeAway' # Replaces empty column.
-            hth_header.insert(9, 'WinLoss') # Inserts missing column.
+            hth_header[7] = 'HomeAway'  # Replaces empty column.
+            hth_header.insert(9, 'WinLoss')  # Inserts missing column.
 
             remove_items = ['FGP', 'FTP', 'TPP']
             for item in sorted(remove_items, reverse=True):
@@ -197,7 +197,7 @@ def find_gamelogs_from_url(
                 season='reg',
                 player_code_1=player_code_1,
                 player_code_2=player_code_2)
-            #Adds all gamelogs in playoff table to database.
+            # Adds all gamelogs in playoff table to database.
             add_gamelogs_in_table_to_db(
                 collection_id='headtoheads',
                 table=playoff_table,
@@ -284,7 +284,7 @@ def add_gamelogs_in_table_to_db(
 
     For each column in a row, if collection_id is 'gamelogs', the text is
     appended to stat_values, a list of all the stat values.
-    
+
     If the text is a:
         Date: Converts to a datetime object then appends.
         Percentage: Converts to float then appends.
@@ -304,7 +304,8 @@ def add_gamelogs_in_table_to_db(
         header (list of str): Header of the gamelog table, containing strings
             for each column.
         season (str): Season of the gamelog. Either 'reg' or 'playoff'.
-        url (str): 
+        url (str): Basketball-Reference url consisting of gamelogs for a
+            single year of player stats.
         player_code_1 (str, optional): Basketball-Reference code for one
             player.
         player_code_2 (str, optional): Basketball-Reference code for another
@@ -315,14 +316,14 @@ def add_gamelogs_in_table_to_db(
         return None
 
     rows = table.findAll('tr')[1:]
-    rows = [r for r in rows if len(r.findAll('td')) > 0] # Rows except header.
+    rows = [r for r in rows if len(r.findAll('td')) > 0]  # Rows except header.
 
     # Each row is one gamelog.
     for row in rows:
         if collection_id == 'gamelogs':
             path_components = path_components_of_url(url)
-            stat_values = [str(path_components[3]), # Player
-                           int(path_components[5]), # Season
+            stat_values = [str(path_components[3]),  # Player
+                           int(path_components[5]),  # Season
                            season]
         else:
             stat_values = [player_code_1, player_code_2, season]
@@ -385,8 +386,8 @@ def add_gamelogs_in_table_to_db(
         # Initializes connection to the correct collection in database.
 
         collection = connection[collection_id].users
-        collection.insert(gamelog) # Inserts the gamelog dictionary to db.
-        print collection.find_one(gamelog) # Finds dict to ensure addition.
+        collection.insert(gamelog)  # Inserts the gamelog dictionary to db.
+        print collection.find_one(gamelog)  # Finds dict to ensure addition.
 
     return
 
@@ -420,9 +421,10 @@ def create_headtoheads_collection():
     with open('./player_names_urls.json') as f:
         player_names_urls = json.load(f)
 
-    player_names = [name for name, url in player_names_urls.items]
-    #for name, url in player_names_urls.items():
-    #    player_names.append(name)
+    player_names = [
+        name
+        for name, url in player_names_urls.items
+    ]
 
     player_combinations = list(combinations(player_names, 2))
     for num, c in enumerate(player_combinations):
@@ -434,7 +436,6 @@ def create_headtoheads_collection():
         # Adds headtohead gamelogs for a combination the database if the
         # combo exists.
         find_headtohead_gamelogs_from_url(*c)
-
 
     return 'ALL HEADTOHEADS ADDED.'
 
@@ -595,7 +596,7 @@ def save_player_names_urls():
             names.append(
                 (name_data.contents[0],
                  'http://www.basketball-reference.com' +
-                    name_data.attrs['href']))
+                 name_data.attrs['href']))
 
     with open('./player_names_and_urls.json', 'w') as f:
         json.dump(dict(names), f)
@@ -627,7 +628,7 @@ def save_gamelog_urls():
             url = table.find('td')
             for link in url.findAll("a"):
                 gamelog_urls.append('http://www.basketball-reference.com' +
-                                        link.get("href"))
+                                    link.get("href"))
 
     with open('./gamelog_urls', 'wb') as f:
         pickle.dump(gamelog_urls, f)
