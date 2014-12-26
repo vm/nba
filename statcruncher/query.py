@@ -1,14 +1,13 @@
 import arrow
-import bson.json_util as bson
+import bson.json_util
 import numpy
-
 from mongokit import Connection
 from sortedcontainers import SortedListWithKey, SortedList
 
-from createdb import find_player_code
+import createdb
+
 
 connection = Connection()
-
 
 class Calculate(object):
     """
@@ -96,7 +95,7 @@ class Calculate(object):
                 str(score['gamelog']['Date'].strftime("%m/%d/%Y")) +
                 ' -- ' +
                 str(score['score']))
-            print bson.dumps(score['gamelog'], indent=4)
+            print bson.json_util.dumps(score['gamelog'], indent=4)
             print
 
     def calc_dfs_score_from_gamelog(self, gamelog):
@@ -139,6 +138,6 @@ class QueryHelpers(object):
 
 
 if __name__ == '__main__':
-    my_query = QueryHelpers(-365, -).datetime_range()
+    my_query = QueryHelpers(-365).datetime_range()
     calculate1 = Calculate(my_query, "DraftKings")
     calculate1.top_dfs_scores(5)

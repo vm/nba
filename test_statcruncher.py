@@ -1,23 +1,18 @@
-import json
-import pickle
 import pytest
 
 import createdb
 from query import Calculate, QueryHelpers
 
-class CreatedbTests(object):
+class TestCreatedb(object):
     def test_is_number_true(self):
         assert createdb.is_number('5') is True
-
 
     def test_is_number_false(self):
         assert createdb.is_number('MIA') is False
 
-
     def test_is_number_string(self):
         with pytest.raises(NotImplementedError):
             createdb.is_number(56)
-
 
     def test_path_components_from_url(self):
         path_components = ['', 'players', 'd', 'duranke01', 'gamelog',
@@ -25,15 +20,6 @@ class CreatedbTests(object):
         assert createdb.path_components_of_url(
             'http://www.basketball-reference.com/players/d/duranke01/' +
                 'gamelog/2014/') == path_components
-
-
-    def test_find_player_code_real_player(self):
-        assert createdb.find_player_code('Barack Obama') is None
-
-
-    def test_find_player_code_imaginary_player(self):
-        assert createdb.find_player_code('Kevin Durant') == 'duranke01'
-
 
     def test_get_gamelog_header(self):
         gamelog_soup = createdb.soup_from_url(
@@ -48,7 +34,6 @@ class CreatedbTests(object):
              u'FTA', u'FTP', u'ORB',  u'DRB',  u'TRB', u'AST', u'STL', u'BLK',
              u'TOV', u'PF',  u'PTS',  u'GmSc', u'PlusMinus']
 
-
     def test_get_hth_header(self):
         hth_soup = createdb.soup_from_url(
             'http://www.basketball-reference.com/play-index/h2h_finder.cgi?' +
@@ -62,14 +47,12 @@ class CreatedbTests(object):
              u'FT',  u'FTA',    u'FTP',  u'ORB', u'DRB', u'TRB', u'AST',
              u'STL', u'BLK',    u'TOV',  u'PF',  u'PTS']
 
-
     def test_get_hth_header_attribute_error(self):
         """
         Attempts to get header of non-existant Jason Kidd vs. Shabazz Napier
         regular season table.
 
         """
-
         gamelog_soup = createdb.soup_from_url(
             'http://www.basketball-reference.com/play-index/h2h_finder.cgi?' +
                 'request=1&p1=kiddja01&p2=napiersh01#stats_playoffs')
@@ -78,7 +61,7 @@ class CreatedbTests(object):
 
         assert createdb.get_header(reg_table) is None
 
-
+'''
 class QueryTests(object):
     def __init__(self):
         self.calculate = Calculate(my_query, "DraftKings")
@@ -99,4 +82,4 @@ class QueryTests(object):
 
     def test_stat_avg_none(self):
         pass
-
+'''

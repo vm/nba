@@ -10,8 +10,8 @@ from mongokit import Connection, Document
 from posixpath import basename
 from urlparse import urlparse
 
-connection = Connection()
 
+connection = Connection()
 
 class Gamelog(Document):
     __collection__ = 'gamelogs'
@@ -230,7 +230,7 @@ def find_basic_gamelogs_from_url(gamelog_url):
         playoff_table_id='pgl_basic_playoffs')
 
 
-def find_headtohead_gamelogs_from_url(player_name_1, player_name_2):
+def find_headtohead_gamelogs_from_url(player_code_1, player_code_2):
     """
     Finds all headtohead gamelogs between two players to add to the database.
     Finds the correct url by finding basketball-reference player codes for
@@ -244,10 +244,6 @@ def find_headtohead_gamelogs_from_url(player_name_1, player_name_2):
         player_code_2 (str): basketball-reference code for another player.
 
     """
-
-    player_code_1 = find_player_code(player_name_1)
-    player_code_2 = find_player_code(player_name_2)
-
     payload = {
         'p1': player_code_1,
         'p2': player_code_2,
@@ -387,13 +383,15 @@ def add_gamelogs_in_table_to_db(
         # Initializes connection to the correct collection in database.
 
         collection = connection[collection_id].users
-        collection.insert(gamelog)  # Inserts the gamelog dictionary to db.
-        print collection.find_one(gamelog)  # Finds dict to ensure addition.
+        find_one = collection.find_one(gamelog)
+        if not find_one:
+            collection.insert(gamelog)  # Inserts the gamelog dictionary to db.
+            print gamelog
 
     return
 
 
-def create_gamelogs_collection():
+def create_gamelogs_collection(filter=None):
     """
     Calls gamelogs_from_url for each url in gamelog_urls, which contains all
     seasons for every active player.
@@ -572,33 +570,6 @@ def soup_from_url(url, payload=None):
         return None
 
 
-def find_player_code(player):
-    """
-    Finds a player code given a player name.
-
-    Args:
-        player (str): Name of a player to look up in player_names_urls.
-
-    Returns:
-        str: player_code of player if successful.
-        None: if player lookup raises KeyError.
-
-    Todo:
-        Use MongoDB as a semi-intelligent cache, instatiating players as
-            items, inserting and deleting players as needed.
-
-    """
-
-    player_url = connection['players'].users.find_one(
-        find_player_code(player))
-
-    player_url_path = urlparse(player_url).path
-    bn = basename(player_url_path)
-    player_code = os.path.splitext(bn)[0]
-
-    return player_code
-
-
 def path_components_of_url(url):
     """
     Splits a url and returns a list of components of the url's path.
@@ -636,5 +607,5 @@ def get_gamelog_urls(player_url):
 
 
 if __name__ == '__main__':
-    connection.register([Player])
-    print create_players_collection()
+    # connection.register([Player])
+    print create_gamelogs_collection()
