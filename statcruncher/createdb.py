@@ -1,6 +1,4 @@
-import json
 import os
-import pickle
 import requests
 import string
 from bs4 import BeautifulSoup
@@ -8,7 +6,6 @@ from collections import OrderedDict
 from datetime import datetime
 from itertools import combinations, izip
 from mongokit import Connection, Document
-from posixpath import basename
 from urlparse import urlparse
 
 
@@ -385,7 +382,7 @@ def add_gamelogs_in_table_to_db(
         find_one = collection.find_one(gamelog)
         if not find_one:
             collection.insert(gamelog)  # Inserts the gamelog dictionary to db
-            out.write(gamelog)
+            print gamelog
 
     return
 
@@ -417,10 +414,8 @@ def create_headtoheads_collection():
     Calls headtoheads_from_url for each combination of two active players.
 
     """
-    player_names = [
-        player['Player']
-        for player in connection['players'].users.find({})
-    ]
+    all_players = connection['players'].users.find({})
+    player_names = [player['Player'] for player in all_players]
 
     player_combinations = list(combinations(player_names, 2))
     for num, c in enumerate(player_combinations):
