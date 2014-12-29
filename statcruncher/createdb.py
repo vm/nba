@@ -495,7 +495,7 @@ def get_header(table):
             table.
 
     Returns:
-        list of str if table, None otherwise.
+        list of str if table, else None.
 
     """
     try:

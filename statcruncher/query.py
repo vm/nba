@@ -1,14 +1,20 @@
 import arrow
 import numpy
-from mongokit import Connection, ObjectId
-import datetime
-import pickle
+from mongokit import Connection
 from sortedcontainers import SortedListWithKey, SortedList
 
 connection = Connection()
 
 
 def print_gamelogs(gamelogs):
+    """
+    Prints each gamelog in a list of gamelogs.
+
+    Args:
+        gamelogs (list of dict): A list of dicts, each with the stats of a
+            specific player for one game.
+
+    """
     if gamelogs:
         for gamelog in gamelogs:
             print gamelog
@@ -18,16 +24,46 @@ def print_gamelogs(gamelogs):
 
 
 class FindGamelogs(object):
+    """
+    Gamelogs based on a given query.
+
+    """
     def __init__(self, query):
+        """
+        Args:
+            query (dict): Used to query the MongoDB database.
+
+        Examples:
+            >>> FindGamelogs(dict(Player='curryst01', PTS={'$gt': 30}))
+            >>> FindGamelogs({'PTS': 81})
+
+        """
         self.query = query
         self.is_gamelog = connection.gamelogs.users.find_one(self.query)
         if self.is_gamelog:
             self.gamelogs = connection.gamelogs.users.find(self.query)
 
     def all_games(self):
+        """
+        Finds all games in the database from a given query.
+
+        Returns:
+            list of dict: A list of gamelogs.
+
+        """
         return [gamelog for gamelog in self.gamelogs]
 
     def filter_active_games(self):
+        """
+        Filters all games in the database where a player was active.
+
+        A player is considered active if he was not Inactive, Did Not Play
+        (Coach's Decision) or Suspended.
+
+        Returns:
+            list of dict, each being a gamelog, if self.is_gamelog, else None.
+
+        """
         if self.is_gamelog:
             return [gamelog for gamelog in self.gamelogs
                     if gamelog['GS'] != 'Inactive'
@@ -36,12 +72,44 @@ class FindGamelogs(object):
         else:
             return None
 
+
 class CalculateDFSScore(object):
+    """
+    Used to calculate DFS scores from gamelogs.
+
+    """
     def __init__(self, gamelogs, site):
+        """
+        Args:
+            gamelogs (list of dict): The list of gamelogs used to calculate
+                scores from.
+            site (str): DFS site. Can be 'draftkings' or 'fanduel'.
+
+        Examples:
+            >>> c = CalculateDFSScore(
+            ...     FindGamelogs(dict(Player='curryst01', PTS={'$gt': 30})),
+            ...                  'draftkings')
+
+        """
         self.gamelogs = gamelogs
         self.site = site
 
     def is_double_triple_double(self, stats):
+        """
+        Checks if a game was a double-double or triple-double by checking the
+        number of stat types with over 10.
+
+        A SortedList is checked to see how many items are over 10, and a
+        value is returned based on that.
+
+        Args:
+            stats (SortedList of float): each being one stat type such as PTS.
+
+        Return:
+            float: 3.00 if triple-double, 1.50 if double-double
+            int: 0 if neither.
+
+        """
         if stats[1] >= 10:
             if stats[2] >= 10:
                 return 3.00 # Triple-Double
@@ -51,6 +119,17 @@ class CalculateDFSScore(object):
             return 0 # Neither
 
     def create_dfs_scores_sorted_list(self):
+        """
+        Sorts gamelogs by DFS score.
+
+        A dict for each gamelog is created, with the gamelog itself and its 
+        associated DFS score (based on the site). They are sorted in reverse
+        order by scores, with the highest scoring gamelog at the start.
+
+        Returns:
+            SortedListWithKey: Sorted list of gamelogs by DFS score.
+
+        """
         dfs_scores = [dict(score=self.calc_dfs_score_from_gamelog(gamelog),
                            gamelog=gamelog)
                       for gamelog in self.gamelogs]
@@ -58,7 +137,15 @@ class CalculateDFSScore(object):
         return SortedListWithKey(dfs_scores, key=lambda val: -val['score'])
 
     def print_top_dfs_scores(self, number):
+        """
+        Prints the top DFS scores in the given gamelogs.
+
+        Examples:
+            >>> c.print_top_dfs_scores(3)
+
+        """
         dfs_scores = self.create_dfs_scores_sorted_list()
+
         for num, score in enumerate(dfs_scores[0:(number)]):
             print (
                 str(num+1) + ') ' +
@@ -68,6 +155,21 @@ class CalculateDFSScore(object):
                 str(score['score']))
 
     def calc_dfs_score_from_gamelog(self, gamelog):
+        """
+        Calculates the DFS score for a given gamelog. Based on self.class,
+        the score is calculated.
+
+        Args:
+            gamelog (dict): A dict with the stats of a specific player for one
+                game.
+
+        Returns:
+            score (float): DFS score of a gamelog.
+
+        Raises:
+            NotImplementedError: If site is not fanduel or draftkings.
+
+        """
         TP  = gamelog['TP']
         AST = gamelog['AST']
         TRB = gamelog['TRB']
@@ -77,9 +179,11 @@ class CalculateDFSScore(object):
 
         if self.site == 'draftkings':
             PTS = gamelog['PTS']
+
             sorted_stats = SortedListWithKey(
                 [PTS, AST, TRB, STL, BLK],
                 key=lambda val: -val)
+
             DDorTD = self.is_double_triple_double(sorted_stats)
             score = (PTS * 1.00 + TP  * 0.50 + AST * 1.50 + TRB * 1.25 +
                      STL * 2.00 + BLK * 2.00 - TOV * 0.50 + DDorTD)
@@ -87,6 +191,7 @@ class CalculateDFSScore(object):
         elif self.site == 'fanduel':
             FG  = gamelog['FG'] - TP
             FT  = gamelog['FT']
+
             score = (FG  * 2.00 + TP  * 3.00 + FT  * 1.00 + AST * 1.50 +
                      TRB * 1.20 + STL * 2.00 + BLK * 2.00 - TOV * 1.00)
 
@@ -97,11 +202,33 @@ class CalculateDFSScore(object):
 
 
 class BasicStatOp(object):
+    """
+    Basic operations for statistics.
+
+    """
     def __init__(self, gamelogs, stat):
+        """
+        Args:
+            gamelogs (list of dict): A list of dicts, each with the stats of a
+                specific player for one game.
+            stat (str): Stat type to operate on, must be found in a gamelog.
+
+        Examples:
+            >>> b = BasicStatOp(
+            ...     FindGamelogs(dict(Player='curryst01',
+            ...                  PTS={'$gt': 30}))), 'PTS')
+
+        """
         self.gamelogs = gamelogs
         self.stat = stat
 
     def find_stats(self):
+        """
+        Finds all the stats for a specific stat type in self.gamelogs.
+
+        Returns:
+            list of float: List of stats of specific stat.
+        """
         if self.gamelogs:
             return [gamelog[self.stat] for gamelog in self.gamelogs]
         else:
@@ -116,26 +243,36 @@ class BasicStatOp(object):
 
 
 class QueryHelpers(object):
+    """
+    Query helpers for querying the database.
+
+    """
     def __init__(self, start, end='now'):
+        """
+        Args:
+            start (str): The start of the time range.
+            end (str, optional): The end of the time range. Initialized with
+                'now' if no end entered.
+
+        Example:
+            >>> q = QueryHelpers('1/2/13', '2/2/13')
+
+        """
         self.start = start
         self.end = end
 
     def datetime_range(self):
+        """
+        Creates a dict with one key 'Date' with a start and end time, which
+        can be used to query the database for gamelogs in a specific time
+        rangle. The dict can either be used as the entire query or added onto
+        other parameters.
+
+        Returns:
+            dict: The Date parameter for a query.
+
+        """
         start = arrow.get(self.start).datetime.replace(tzinfo=None)
         end = arrow.get(self.end).datetime.replace(tzinfo=None)
+
         return {'Date': {'$gte': start, '$lt': end}}
-
-if __name__ == '__main__':
-    QueryHelpers1 = QueryHelpers('2014-12-20', '2014-12-22')
-    my_query = {'Opp': 'WAS'}
-    my_query.update(QueryHelpers1.datetime_range())
-
-    games = FindGamelogs(my_query).filter_active_games()
-    
-    with open('test_sorted_gamelogs', 'wb') as f:
-        test_sorted_gamelogs = [
-        {'score': 35.75, 'gamelog': {u'PlusMinus': 5.0, u'FT': 5.0, u'TOV': 2.0, u'Tm': u'PHO', u'GmSc': 12.6, u'FG': 6.0, u'DRB': 7.0, u'Rk': 29.0, u'Opp': u'WAS', u'G': 29.0, u'AST': 3.0, u'Season': u'reg', u'HomeAway': u'@', u'TP': 0.0, u'PF': 3.0, u'Date': datetime.datetime(2014, 12, 21, 0, 0), u'WinLoss': u'W (+12)', u'FGA': 15.0, u'GS': 1.0, u'TPA': 3.0, u'STL': 1.0, u'Age': u'25-012', u'TRB': 9.0, u'FTA': 6.0, u'BLK': 1.0, u'PTS': 17.0, u'Player': u'bledser01', u'MP': u'28:48', u'Year': 2015, u'_id': ObjectId('54989eb03a4cfc5309df7826'), u'ORB': 2.0}}, {'score': 31.0, 'gamelog': {u'PlusMinus': 0.0, u'FT': 2.0, u'TOV': 3.0, u'Tm': u'PHO', u'GmSc': 12.9, u'FG': 6.0, u'DRB': 5.0, u'Rk': 29.0, u'Opp': u'WAS', u'G': 27.0, u'AST': 4.0, u'Season': u'reg', u'HomeAway': u'@', u'TP': 2.0, u'PF': 2.0, u'Date': datetime.datetime(2014, 12, 21, 0, 0), u'WinLoss': u'W (+12)', u'FGA': 11.0, u'GS': 1.0, u'TPA': 5.0, u'STL': 1.0, u'Age': u'28-229', u'TRB': 6.0, u'FTA': 2.0, u'BLK': 0.0, u'PTS': 16.0, u'Player': u'dragigo01', u'MP': u'30:48', u'Year': 2015, u'_id': ObjectId('54989fea3a4cfc5309df998e'), u'ORB': 1.0}}, {'score': 26.5, 'gamelog': {u'PlusMinus': 3.0, u'FT': 2.0, u'TOV': 2.0, u'Tm': u'PHO', u'GmSc': 9.0, u'FG': 3.0, u'DRB': 4.0, u'Rk': 29.0, u'Opp': u'WAS', u'G': 29.0, u'AST': 1.0, u'Season': u'reg', u'HomeAway': u'@', u'TP': 0.0, u'PF': 5.0, u'Date': datetime.datetime(2014, 12, 21, 0, 0), u'WinLoss': u'W (+12)', u'FGA': 3.0, u'GS': 1.0, u'TPA': 0.0, u'STL': 0.0, u'Age': u'21-188', u'TRB': 8.0, u'FTA': 6.0, u'BLK': 4.0, u'PTS': 8.0, u'Player': u'lenal01', u'MP': u'23:33', u'Year': 2015, u'_id': ObjectId('5498b54f3a4cfc5309e21cea'), u'ORB': 4.0}}, {'score': 20.5, 'gamelog': {u'PlusMinus': 8.0, u'FT': 2.0, u'TOV': 2.0, u'Tm': u'PHO', u'GmSc': 8.5, u'FG': 7.0, u'DRB': 2.0, u'Rk': 29.0, u'Opp': u'WAS', u'G': 29.0, u'AST': 1.0, u'Season': u'reg', u'HomeAway': u'@', u'TP': 1.0, u'PF': 2.0, u'Date': datetime.datetime(2014, 12, 21, 0, 0), u'WinLoss': u'W (+12)', u'FGA': 14.0, u'GS': 1.0, u'TPA': 3.0, u'STL': 0.0, u'Age': u'25-110', u'TRB': 2.0, u'FTA': 2.0, u'BLK': 0.0, u'PTS': 17.0, u'Player': u'morrima02', u'MP': u'35:37', u'Year': 2015, u'_id': ObjectId('5498b54b3a4cfc5309e21c7b'), u'ORB': 0.0}}, {'score': 17.75, 'gamelog': {u'PlusMinus': 9.0, u'FT': 2.0, u'TOV': 1.0, u'Tm': u'PHO', u'GmSc': 5.2, u'FG': 4.0, u'DRB': 2.0, u'Rk': 29.0, u'Opp': u'WAS', u'G': 21.0, u'AST': 3.0, u'Season': u'reg', u'HomeAway': u'@', u'TP': 0.0, u'PF': 1.0, u'Date': datetime.datetime(2014, 12, 21, 0, 0), u'WinLoss': u'W (+12)', u'FGA': 12.0, u'GS': 0.0, u'TPA': 0.0, u'STL': 0.0, u'Age': u'25-317', u'TRB': 3.0, u'FTA': 2.0, u'BLK': 0.0, u'PTS': 10.0, u'Player': u'thomais02', u'MP': u'24:01', u'Year': 2015, u'_id': ObjectId('54989ca03a4cfc5309df3731'), u'ORB': 1.0}}, {'score': 17.5, 'gamelog': {u'PlusMinus': 11.0, u'FT': 1.0, u'TOV': 3.0, u'Tm': u'PHO', u'GmSc': 7.1, u'FG': 5.0, u'DRB': 3.0, u'Rk': 29.0, u'Opp': u'WAS', u'G': 29.0, u'AST': 0.0, u'Season': u'reg', u'HomeAway': u'@', u'TP': 2.0, u'PF': 4.0, u'Date': datetime.datetime(2014, 12, 21, 0, 0), u'WinLoss': u'W (+12)', u'FGA': 7.0, u'GS': 0.0, u'TPA': 3.0, u'STL': 0.0, u'Age': u'28-329', u'TRB': 4.0, u'FTA': 1.0, u'BLK': 0.0, u'PTS': 13.0, u'Player': u'greenge01', u'MP': u'17:43', u'Year': 2015, u'_id': ObjectId('5498b5ec3a4cfc5309e2305b'), u'ORB': 1.0}}, {'score': 17.0, 'gamelog': {u'PlusMinus': 9.0, u'FT': 0.0, u'TOV': 1.0, u'Tm': u'PHO', u'GmSc': 6.6, u'FG': 2.0, u'DRB': 4.0, u'Rk': 29.0, u'Opp': u'WAS', u'G': 29.0, u'AST': 0.0, u'Season': u'reg', u'HomeAway': u'@', u'TP': 0.0, u'PF': 2.0, u'Date': datetime.datetime(2014, 12, 21, 0, 0), u'WinLoss': u'W (+12)', u'FGA': 2.0, u'GS': 0.0, u'TPA': 0.0, u'STL': 1.0, u'Age': u'26-111', u'TRB': 6.0, u'FTA': 0.0, u'BLK': 2.0, u'PTS': 4.0, u'Player': u'plumlmi01', u'MP': u'21:27', u'Year': 2015, u'_id': ObjectId('5498ad193a4cfc5309e11c27'), u'ORB': 2.0}}, {'score': 12.5, 'gamelog': {u'PlusMinus': 9.0, u'FT': 0.0, u'TOV': 1.0, u'Tm': u'PHO', u'GmSc': 4.8, u'FG': 5.0, u'DRB': 0.0, u'Rk': 29.0, u'Opp': u'WAS', u'G': 29.0, u'AST': 1.0, u'Season': u'reg', u'HomeAway': u'@', u'TP': 1.0, u'PF': 2.0, u'Date': datetime.datetime(2014, 12, 21, 0, 0), u'WinLoss': u'W (+12)', u'FGA': 9.0, u'GS': 0.0, u'TPA': 2.0, u'STL': 0.0, u'Age': u'25-110', u'TRB': 0.0, u'FTA': 2.0, u'BLK': 0.0, u'PTS': 11.0, u'Player': u'morrima03', u'MP': u'29:12', u'Year': 2015, u'_id': ObjectId('5498b2f13a4cfc5309e1d560'), u'ORB': 0.0}}, {'score': 11.25, 'gamelog': {u'PlusMinus': 3.0, u'FT': 2.0, u'TOV': 2.0, u'Tm': u'PHO', u'GmSc': 3.8, u'FG': 2.0, u'DRB': 4.0, u'Rk': 29.0, u'Opp': u'WAS', u'G': 25.0, u'AST': 0.0, u'Season': u'reg', u'HomeAway': u'@', u'TP': 0.0, u'PF': 2.0, u'Date': datetime.datetime(2014, 12, 21, 0, 0), u'WinLoss': u'W (+12)', u'FGA': 3.0, u'GS': 1.0, u'TPA': 1.0, u'STL': 0.0, u'Age': u'29-230', u'TRB': 5.0, u'FTA': 2.0, u'BLK': 0.0, u'PTS': 6.0, u'Player': u'tuckepj01', u'MP': u'18:48', u'Year': 2015, u'_id': ObjectId('5498af363a4cfc5309e15a5c'), u'ORB': 1.0}}, {'score': 6.5, 'gamelog': {u'PlusMinus': 3.0, u'FT': 2.0, u'TOV': 0.0, u'Tm': u'PHO', u'GmSc': 1.5, u'FG': 0.0, u'DRB': 2.0, u'Rk': 29.0, u'Opp': u'WAS', u'G': 12.0, u'AST': 0.0, u'Season': u'reg', u'HomeAway': u'@', u'TP': 0.0, u'PF': 1.0, u'Date': datetime.datetime(2014, 12, 21, 0, 0), u'WinLoss': u'W (+12)', u'FGA': 2.0, u'GS': 0.0, u'TPA': 0.0, u'STL': 0.0, u'Age': u'31-027', u'TRB': 2.0, u'FTA': 2.0, u'BLK': 1.0, u'PTS': 2.0, u'Player': u'randosh01', u'MP': u'10:03', u'Year': 2015, u'_id': ObjectId('5498b1883a4cfc5309e1a75c'), u'ORB': 0.0}}]
-        pickle.dump(test_sorted_gamelogs, f)
-
-
-    print CalculateDFSScore(games, 'draftkings').create_dfs_scores_sorted_list()

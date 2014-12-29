@@ -8,19 +8,19 @@ from sortedcontainers import SortedListWithKey
 
 from statcruncher.query import *
 
-with open('./test_dfs_gamelogs') as f:
+with open('./test_files/test_dfs_gamelogs') as f:
     test_dfs_gamelogs = pickle.load(f)
-with open('./test_gamelogs') as f:
+with open('./test_files/test_gamelogs') as f:
     test_gamelogs = pickle.load(f)
-with open('./test_active_games_list') as f:
+with open('./test_files/test_active_games_list') as f:
     test_active_games_list = pickle.load(f)
-with open('./test_sorted_gamelogs') as f:
+with open('./test_files/test_sorted_gamelogs') as f:
     test_sorted_gamelogs = pickle.load(f)
 
 def test_print_gamelogs(capsys):
     print_gamelogs(test_gamelogs)
     out, err = capsys.readouterr()
-    expected = open('./print_gamelogs.out', 'r').read()
+    expected = open('./test_files/print_gamelogs.out', 'r').read()
     assert out == expected
 
 def test_print_gamelogs_none(capsys):
@@ -40,14 +40,35 @@ class TestCalculateDFSScore(object):
         self.my_query.update(self.q.datetime_range())
         self.g = FindGamelogs(self.my_query)
         self.test_dfs_gamelog = {
-            'PlusMinus': 19.0, 'FT': 10.0, 'TOV': 2.0, 'Tm': 'POR',
-            'GmSc': 38.8, 'FG': 11.0, 'DRB': 5.0, 'Rk': 30.0, 'Opp': 'OKC',
-            'G': 30.0, 'AST': 11.0, 'Season': 'reg', 'HomeAway': '@',
-            'TP': 8.0, 'PF': 1.0,
+            'PlusMinus': 19.0,
+            'FT': 10.0,
+            'TOV': 2.0,
+            'Tm': 'POR',
+            'GmSc': 38.8,
+            'FG': 11.0,
+            'DRB': 5.0,
+            'Rk': 30.0,
+            'Opp': 'OKC',
+            'G': 30.0,
+            'AST': 11.0,
+            'Season': 'reg',
+            'HomeAway': '@',
+            'TP': 8.0,
+            'PF': 1.0,
             'Date': datetime.datetime(2014, 12, 23, 0, 0),
-            'WinLoss': 'W (+4)', 'FGA': 21.0, 'GS': 1.0, 'TPA': 12.0,
-            'STL': 2.0, 'Age': '24-161', 'TRB': 6.0, 'FTA': 11.0, 'BLK': 0.0,
-            'PTS': 40.0, 'Player': 'lillada01', 'MP': '45:46', 'Year': '2015',
+            'WinLoss': 'W (+4)',
+            'FGA': 21.0,
+            'GS': 1.0,
+            'TPA': 12.0,
+            'STL': 2.0,
+            'Age': '24-161',
+            'TRB': 6.0,
+            'FTA': 11.0,
+            'BLK': 0.0,
+            'PTS': 40.0,
+            'Player': 'lillada01',
+            'MP': '45:46',
+            'Year': '2015',
             'ORB': 1.0}
 
     def test_calc_dfs_score_from_gamelog_draftkings(self):
@@ -79,8 +100,10 @@ class TestCalculateDFSScore(object):
     def test_print_top_dfs_scores(self, capsys):
         my_games = self.g.filter_active_games()
         CalculateDFSScore(my_games, 'draftkings').print_top_dfs_scores(10)
+
         out, err = capsys.readouterr()
-        expected = open('./print_top_dfs_scores.out', 'r').read()
+        expected = open('./test_files/print_top_dfs_scores.out', 'r').read()
+
         assert out == expected
 
 
@@ -114,6 +137,7 @@ class TestQueryHelpers(object):
                 '$gte': datetime.datetime(2014, 12, 20, 0, 0),
                 '$lt': datetime.datetime(2014, 12, 22, 0, 0)
             }}
+
 
 class TestFindGamelogs(object):
     @classmethod
