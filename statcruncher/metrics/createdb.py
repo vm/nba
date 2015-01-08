@@ -6,12 +6,15 @@ from collections import OrderedDict
 from datetime import datetime
 from itertools import combinations, izip
 from mongokit import Connection, Document
+from posixpath import basename
 from urlparse import urlparse
 
 
 connection = Connection()
 
+@connection.register
 class Gamelog(Document):
+    __database__ = 'nba'
     __collection__ = 'gamelogs'
     structure = {
         'FT': float,
@@ -41,20 +44,26 @@ class Gamelog(Document):
         'PlusMinus': float,
         'PTS': float,
         'Player': str,
+        'PlayerCode': str,
         'MP': float,
         'Year': int,
         'ORB': float
     }
     required_fields = ['Opp', 'Season', 'G',  'Age', 'HomeAway', 'Player',
-                       'Tm',  'Year',   'Rk', 'GS',  'WinLoss',  'Date']
+                       'Tm',  'Year',   'Rk', 'GS',  'WinLoss',  'Date',
+                       'PlayerCode']
     use_dot_notation = True
 
 
+@connection.register
 class Headtohead(Document):
+    __database__ = 'nba'
     __collection__ = 'headtoheads'
     structure = {
         'Player': str,
-        'Opp_Player': str,
+        'PlayerCode': str,
+        'OppPlayer': str,
+        'OppPlayerCode': str,
         'FT': float,
         'TP': float,
         'TOV': float,
@@ -80,12 +89,15 @@ class Headtohead(Document):
         'MP': float,
         'ORB': float
     }
-    required_fields = ['Player',  'Opp_Player', 'Opp', 'Season', 'Tm',
-                       'WinLoss', 'HomeAway',   'GS',  'Date',   'Rk']
+    required_fields = ['Player', 'PlayerCode', 'OppPlayer', 'OppPlayerCode',
+                       'Season', 'WinLoss', 'HomeAway', 'GS', 
+                       'Date', 'Rk', 'Tm']
     use_dot_notation = True
 
 
+@connection.register
 class Player(Document):
+    __database__ = 'nba'
     __collection__ = 'players'
     structure = {
         'Player': str,
@@ -150,10 +162,10 @@ def find_gamelogs_from_url(
 
     # Initializes header based on the collection_id.
     if collection_id == 'gamelogs':
-        gamelog_header = (['Player', 'Year', 'Season'] +
+        gamelog_header = (['Player', 'PlayerCode', 'Year', 'Season'] +
                           get_header(reg_table))
-        gamelog_header[8] = 'HomeAway'  # Replaces an empty column title.
-        gamelog_header.insert(10, 'WinLoss')  # Inserts a missing column title.
+        gamelog_header[9] = 'HomeAway'  # Replaces an empty column title.
+        gamelog_header.insert(11, 'WinLoss')  # Inserts a missing column title.
 
         remove_items = ['FGP', 'FTP', 'TPP']
         for item in sorted(remove_items, reverse=True):
@@ -179,10 +191,11 @@ def find_gamelogs_from_url(
         # Only adds gamelogs to database if a header is found.
         # If no header, that means there are no matchups between the players.
         if hth_header_add:
-            hth_header = (['player_code_1', 'player_code_2', 'Season'] +
+            hth_header = (['Player', 'PlayerCode', 'OppPlayer',
+                           'OppPlayerCode', 'Season'] +
                           hth_header_add)
-            hth_header[7] = 'HomeAway'  # Replaces empty column.
-            hth_header.insert(9, 'WinLoss')  # Inserts missing column.
+            hth_header[9] = 'HomeAway'  # Replaces empty column.
+            hth_header.insert(11, 'WinLoss')  # Inserts missing column.
 
             remove_items = ['FGP', 'FTP', 'TPP']
             for item in sorted(remove_items, reverse=True):
@@ -220,6 +233,11 @@ def find_basic_gamelogs_from_url(gamelog_url):
         gamelog_url (str): basketball-reference url consisting of gamelogs for
             a single year of player stats.
 
+        Examples:
+            >>> url = ('http://www.basketball-reference.com/players/d/' + 
+            ...        'duranke01/gamelog/2014/') 
+            >>> find_basic_gamelogs_from_url(url) 
+
     """
     return find_gamelogs_from_url(
         collection_id='gamelogs',
@@ -240,6 +258,9 @@ def find_headtohead_gamelogs_from_url(player_code_1, player_code_2):
     Args:
         player_code_1 (str): basketball-reference code for one player.
         player_code_2 (str): basketball-reference code for another player.
+
+    Examples:
+        >>> find_headtohead_gamelogs_from_url('Kevin Durant', 'LeBron James')
 
     """
     payload = {
@@ -317,8 +338,9 @@ def add_gamelogs_in_table_to_db(
     for row in rows:
         if collection_id == 'gamelogs':
             path_components = path_components_of_url(url)
-            stat_values = [str(path_components[3]),  # Player
-                           int(path_components[5]),  # Season
+            stat_values = [find_player_name(str(path_components[3])),  #Player
+                           str(path_components[3]),  # PlayerCode
+                           int(path_components[5]),  # Year
                            season]
         else:
             stat_values = [player_code_1, player_code_2, season]
@@ -361,30 +383,29 @@ def add_gamelogs_in_table_to_db(
         # for each stat type.
         gamelog = dict(izip(header, stat_values))
 
-        # Instead of player_code_1, player_code_2, Player in headtoheads,
-        # removes replaces Player key to player_code_1 if values equal.
-        # Otherwise, convert Player to player_code_2 and player_code_1 to
-        # Opp_Player.
+        # Replaces Player key to player_code_1 if values equal. Otherwise,
+        # converts Player to player_code_2 and player_code_1 to Opp_Player.
         if collection_id == 'headtoheads':
             player_code = find_player_code(gamelog['Player'])
+
             if player_code == gamelog['player_code_1']:
                 gamelog.pop('Player', None)
-                gamelog['Player'] = gamelog.pop('player_code_1')
-                gamelog['Opp_Player'] = gamelog.pop('player_code_2')
+                gamelog['PlayerCode'] = gamelog.pop('player_code_1')
+                gamelog['OppPlayerCode'] = gamelog.pop('player_code_2')
             else:
                 gamelog.pop('Player', None)
                 gamelog['Player'] = gamelog.pop('player_code_2')
                 gamelog['Opp_Player'] = gamelog.pop('player_code_1')
 
+            gamelog['Player'] = find_player_name(gamelog['PlayerCode'])
+            gamelog['OppPlayer'] = find_player_name(gamelog['OppPlayerCode'])
+
         # Initializes connection to the correct collection in database.
 
-        collection = connection[collection_id].users
-        find_one = collection.find_one(gamelog)
-        if not find_one:
-            collection.insert(gamelog)  # Inserts the gamelog dictionary to db
-            print gamelog
-
-    return
+        if collection_id == 'gamelogs':
+            connection.nba.gamelogs.insert(gamelog)
+        else:
+            connection.nba.headtoheads.insert(gamelog)
 
 
 def create_gamelogs_collection(filter=None):
@@ -394,7 +415,7 @@ def create_gamelogs_collection(filter=None):
 
     """
     gamelog_urls = []
-    for player in connection['players'].users.find({}):
+    for player in connection.nba.players.find({}):
         gamelog_urls.extend(player['GamelogURLs'])
 
     for num, url in enumerate(gamelog_urls):
@@ -414,8 +435,9 @@ def create_headtoheads_collection():
     Calls headtoheads_from_url for each combination of two active players.
 
     """
-    all_players = connection['players'].users.find({})
-    player_names = [player['Player'] for player in all_players]
+    all_players = connection.nba.players.find({})
+    player_names = [find_player_code(player['Player']) 
+                    for player in all_players] 
 
     player_combinations = list(combinations(player_names, 2))
     for num, c in enumerate(player_combinations):
@@ -469,18 +491,14 @@ def create_players_collection():
 
     for name, player_url in names:
         gamelog_urls = get_gamelog_urls(player_url)
-        # salaries = 'WORK ON THIS'
-        name = find_player_code(name)
 
         player = dict(
             Player=name,
-            # Salary=salaries,
             GamelogURLs=gamelog_urls,
             URL=player_url)
 
-        collection = connection['players'].users
-        collection.insert(player)
-        print collection.find_one(player)
+        connection.nba.players.insert(player)
+        print connection.nba.players.find_one(player)
 
     return "ALL PLAYERS ADDED."
 
@@ -509,10 +527,45 @@ def get_header(table):
 
 
 def get_column_title(th):
-    col = th.replace('%','P') \
-            .replace('3','T') \
-            .replace('+/-','PlusMinus')
-    return col
+    return th.replace('%','P') \
+             .replace('3','T') \
+             .replace('+/-','PlusMinus')
+
+
+def find_player_code(player):
+    """
+    Finds a player code given a player name.
+
+    Args:
+        player (str): Name of a player to look up in player_names_urls.
+
+    Returns:
+        str: player_code of player if successful.
+        None: if player lookup raises KeyError.
+
+    Examples:
+        >>> 
+
+    """
+    player_dict = connection.nba.players.find_one(dict(Player=player))
+    player_url = player_dict['URL']
+
+    player_url_path = urlparse(player_url).path
+    bn = basename(player_url_path)
+    player_code = os.path.splitext(bn)[0]
+
+    return player_code
+
+
+def find_player_name(player_code):
+    player_dict = connection.nba.players.find_one(
+        {
+            "URL" : {
+                '$regex' : '.*' + player_code + '.*'
+            }
+        })
+
+    return player_dict['Player']
 
 
 def is_number(s):
@@ -577,13 +630,12 @@ def path_components_of_url(url):
 
 def get_gamelog_urls(player_url):
     """
-    Returns list of gamelog urls with every year of every current player.
+    Returns list of gamelog urls with every year for one player.
 
-    Opens player_names_urls, a JSON file containing a list of dictionaries
-    with key values Name and URL. For each dictionary in the list, url is
-    scraped and the table containing the player totals is stored. Finds each
-    single season table in the totals table. In each single season table, the
-    gamelog url found by searching for url column and finding the link text.
+    The given url is scraped and the table containing the player totals is
+    stored. Finds each single season table in the totals table. In each single
+    season table, the gamelog url found by searching for url column and
+    finding the link text.
     """
     table_soup = soup_from_url(player_url)
 
@@ -598,4 +650,4 @@ def get_gamelog_urls(player_url):
 
 
 if __name__ == '__main__':
-    pass
+    create_gamelogs_collection()

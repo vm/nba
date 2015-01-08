@@ -39,9 +39,9 @@ class FindGamelogs(object):
 
         """
         self.query = query
-        self.is_gamelog = connection.gamelogs.users.find_one(self.query)
+        self.is_gamelog = connection.nba.gamelogs.find_one(self.query)
         if self.is_gamelog:
-            self.gamelogs = connection.gamelogs.users.find(self.query)
+            self.gamelogs = connection.nba.gamelogs.find(self.query)
 
     def all_games(self):
         """
@@ -75,7 +75,7 @@ class FindGamelogs(object):
 
 class CalculateDFSScore(object):
     """
-    Used to calculate DFS scores from gamelogs.
+    DFS score from gamelogs.
 
     """
     def __init__(self, gamelogs, site):
