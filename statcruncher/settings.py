@@ -1,0 +1,5 @@
+
+DEBUG = True
+USE_RELOADER = True
+
+SECRET_KEY = 'S00p3rS3cr3T'
