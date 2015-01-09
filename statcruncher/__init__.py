@@ -13,6 +13,3 @@ db = MongoEngine(app)
 # api = restful.Api(app)
 
 from statcruncher.urls import *
-
-if __name__ == '__main__':
-    app.run()
