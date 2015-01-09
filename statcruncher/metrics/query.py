@@ -23,11 +23,24 @@ def print_gamelogs(gamelogs):
     return
 
 
-class FindGamelogs(object):
+class QueryPlayers(object):
+    """Queries some players. This will probably go away at some point.
     """
-    Gamelogs based on a given query.
 
+    def query_specific_player(self, player_name=None):
+        """Queries for a single player given a string 'FirstName LastName'.
+        """
+
+        if player_name:
+            return connection.nba.players.find_one({'Player': player_name})
+        else:
+            raise ValueError('Specify a player name, please!')
+
+
+class FindGamelogs(object):
+    """Gamelogs based on a given query.
     """
+
     def __init__(self, query):
         """
         Args:
@@ -74,10 +87,9 @@ class FindGamelogs(object):
 
 
 class CalculateDFSScore(object):
+    """DFS score from gamelogs.
     """
-    DFS score from gamelogs.
 
-    """
     def __init__(self, gamelogs, site):
         """
         Args:
@@ -122,7 +134,7 @@ class CalculateDFSScore(object):
         """
         Sorts gamelogs by DFS score.
 
-        A dict for each gamelog is created, with the gamelog itself and its 
+        A dict for each gamelog is created, with the gamelog itself and its
         associated DFS score (based on the site). They are sorted in reverse
         order by scores, with the highest scoring gamelog at the start.
 
@@ -202,10 +214,9 @@ class CalculateDFSScore(object):
 
 
 class BasicStatOp(object):
+    """Basic operations for statistics.
     """
-    Basic operations for statistics.
 
-    """
     def __init__(self, gamelogs, stat):
         """
         Args:
@@ -243,10 +254,9 @@ class BasicStatOp(object):
 
 
 class QueryHelpers(object):
+    """Query helpers for querying the database.
     """
-    Query helpers for querying the database.
 
-    """
     def __init__(self, start, end='now'):
         """
         Args:
