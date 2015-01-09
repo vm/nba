@@ -1,5 +1,6 @@
 
 import os
+import subprocess
 import sys
 
 from flask.ext.script import Manager, Server
@@ -15,6 +16,10 @@ manager.add_command("runserver", Server(
     use_debugger = settings.DEBUG,
     use_reloader = settings.USE_RELOADER,
     host = '0.0.0.0')
+)
+
+manager.add_command("runtests",
+    subprocess.call("cd tests && py.test", shell=True)
 )
 
 if __name__ == "__main__":

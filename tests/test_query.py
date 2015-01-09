@@ -1,4 +1,4 @@
-import sys; sys.path.append('./statcruncher')
+# import sys; sys.path.append('./metrics')
 
 import datetime
 import pickle
@@ -6,21 +6,21 @@ import pytest
 from mongokit import ObjectId
 from sortedcontainers import SortedListWithKey
 
-from statcruncher.query import *
+from statcruncher.metrics.query import *
 
-with open('./test_files/test_dfs_gamelogs') as f:
+with open('test_files/test_dfs_gamelogs') as f:
     test_dfs_gamelogs = pickle.load(f)
-with open('./test_files/test_gamelogs') as f:
+with open('test_files/test_gamelogs') as f:
     test_gamelogs = pickle.load(f)
-with open('./test_files/test_active_games_list') as f:
+with open('test_files/test_active_games_list') as f:
     test_active_games_list = pickle.load(f)
-with open('./test_files/test_sorted_gamelogs') as f:
+with open('test_files/test_sorted_gamelogs') as f:
     test_sorted_gamelogs = pickle.load(f)
 
 def test_print_gamelogs(capsys):
     print_gamelogs(test_gamelogs)
     out, err = capsys.readouterr()
-    expected = open('./test_files/print_gamelogs.out', 'r').read()
+    expected = open('test_files/print_gamelogs.out', 'r').read()
     assert out == expected
 
 def test_print_gamelogs_none(capsys):
@@ -115,7 +115,7 @@ class TestBasicStatOp(object):
 
     def test_find_stats(self):
         assert self.b.find_stats() == [31.0, 12.0, 23.0]
- 
+
     def test_find_stats_none(self):
         assert self.b_empty.find_stats() is None
 

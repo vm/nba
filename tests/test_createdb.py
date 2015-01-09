@@ -1,8 +1,8 @@
-import sys; sys.path.append('./statcruncher')
+# import sys; sys.path.append('./tests/metrics')
 
 import pytest
 
-from statcruncher.createdb import *
+from statcruncher.metrics.createdb import *
 
 
 class TestCreatedb(object):
