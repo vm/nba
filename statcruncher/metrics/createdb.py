@@ -6,6 +6,7 @@ from collections import OrderedDict
 from datetime import datetime
 from itertools import combinations, izip
 from mongokit import Connection, Document
+from multiprocessing import Pool
 from posixpath import basename
 from urlparse import urlparse
 
@@ -239,6 +240,7 @@ def find_basic_gamelogs_from_url(gamelog_url):
             >>> find_basic_gamelogs_from_url(url) 
 
     """
+    print gamelog_url
     return find_gamelogs_from_url(
         collection_id='gamelogs',
         url=gamelog_url,
@@ -403,7 +405,7 @@ def add_gamelogs_in_table_to_db(
         # Initializes connection to the correct collection in database.
 
         if collection_id == 'gamelogs':
-            connection.nba.gamelogs.insert(gamelog)
+            connection.nba.gamelogs1.insert(gamelog)
         else:
             connection.nba.headtoheads.insert(gamelog)
 
@@ -415,17 +417,11 @@ def create_gamelogs_collection(filter=None):
 
     """
     gamelog_urls = []
-    for player in connection.nba.players.find({}):
+    for player in connection.nba.players.find():
         gamelog_urls.extend(player['GamelogURLs'])
 
-    for num, url in enumerate(gamelog_urls):
-        # Print percent completion and current url.
-        print (str(((num + 1) * 100) / (len(gamelog_urls))) +
-               '%  --  ' +
-               url)
-
-        # Adds gamelogs from a url to the database.
-        find_basic_gamelogs_from_url(url)
+    p = Pool(20)
+    p.map(find_basic_gamelogs_from_url, gamelog_urls)
 
     return 'ALL GAMELOGS ADDED.'
 
@@ -436,8 +432,10 @@ def create_headtoheads_collection():
 
     """
     all_players = connection.nba.players.find({})
-    player_names = [find_player_code(player['Player']) 
-                    for player in all_players] 
+    player_names = [
+            find_player_code(player['Player']) 
+            for player in all_players
+        ] 
 
     player_combinations = list(combinations(player_names, 2))
     for num, c in enumerate(player_combinations):
