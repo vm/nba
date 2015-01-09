@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 
-from flask.ext.script import Manager, Server
+from flask.ext.script import Manager, Server, Shell
 
 from statcruncher import app, settings
 
@@ -18,9 +18,15 @@ manager.add_command("runserver", Server(
     host = '0.0.0.0')
 )
 
-manager.add_command("runtests",
+# Serve up a basic app shell.
+manager.add_command("shell", Shell())
+
+
+@manager.command
+def runtests():
+    """Runs tests in /tests/."""
     subprocess.call("cd tests && py.test", shell=True)
-)
+
 
 if __name__ == "__main__":
     manager.run()
