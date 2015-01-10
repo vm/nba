@@ -1,9 +1,11 @@
 import arrow
 import numpy
+import os
+
 from mongokit import Connection
 from sortedcontainers import SortedListWithKey, SortedList
 
-connection = Connection()
+connection = Connection(os.environ.get('MONGOLAB_URI', 'mongodb://localhost:27017'))
 
 
 def print_gamelogs(gamelogs):

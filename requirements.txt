@@ -18,7 +18,7 @@ gunicorn==19.1.1
 itsdangerous==0.24
 mongoengine==0.8.7
 mongokit==0.9.1.1
-# numpy==1.9.1
+numpy==1.9.1
 paramiko==1.15.2
 py==1.4.26
 pycrypto==2.6.1
