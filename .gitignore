@@ -27,3 +27,4 @@ downloads
 eggs
 parts
 lib64
+.venv

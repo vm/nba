@@ -1,19 +1,9 @@
-# import sys; sys.path.append('./tests/metrics')
-
 import pytest
 
-from statcruncher.metrics.createdb import *
+from statcruncher.metrics.utils import *
 
 
-class TestCreatedb(object):
-    @classmethod
-    def setup_class(self):
-        pass
-
-    @classmethod
-    def teardown_class(self):
-        pass
-
+class TestUtils(object):
     def test_is_number_true(self):
         assert is_number('5') is True
 
@@ -40,16 +30,18 @@ class TestCreatedb(object):
             'Rk',  'G',   'Date', 'Age',  'Tm',  '',    'Opp', 'GS',
             'MP',  'FG',  'FGA',  'FGP',  'TP',  'TPA', 'TPP', 'FT',
             'FTA', 'FTP', 'ORB',  'DRB',  'TRB', 'AST', 'STL', 'BLK',
-            'TOV', 'PF',  'PTS',  'GmSc', 'PlusMinus']
+            'TOV', 'PF',  'PTS',  'GmSc', 'PlusMinus'
+        ]
 
     def test_get_gamelog_urls(self):
         gamelog_urls = get_gamelog_urls(
             'http://www.basketball-reference.com/players/d/duranke01.html')
         base = (u'http://www.basketball-reference.com/players/d/duranke01/' +
-               'gamelog/')
+                'gamelog/')
         assert gamelog_urls == [
             base + '2008/', base + '2009/', base + '2010/', base + '2011/',
-            base + '2012/', base + '2013/', base + '2014/', base + '2015/',]
+            base + '2012/', base + '2013/', base + '2014/', base + '2015/'
+        ]
 
     def test_get_hth_header(self):
         hth_soup = soup_from_url(
@@ -60,7 +52,8 @@ class TestCreatedb(object):
             'Rk',  'Player', 'Date', 'Tm',  '',    'Opp', 'GS',
             'MP',  'FG',     'FGA',  'FGP', 'TP',  'TPA', 'TPP',
             'FT',  'FTA',    'FTP',  'ORB', 'DRB', 'TRB', 'AST',
-            'STL', 'BLK',    'TOV',  'PF',  'PTS']
+            'STL', 'BLK',    'TOV',  'PF',  'PTS'
+        ]
 
     def test_get_hth_header_attribute_error(self):
         gamelog_soup = soup_from_url(

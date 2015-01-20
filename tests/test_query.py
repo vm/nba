@@ -1,7 +1,6 @@
-# import sys; sys.path.append('./metrics')
-
 import datetime
 import pickle
+
 import pytest
 from mongokit import ObjectId
 from sortedcontainers import SortedListWithKey
@@ -17,11 +16,13 @@ with open('test_files/test_active_games_list') as f:
 with open('test_files/test_sorted_gamelogs') as f:
     test_sorted_gamelogs = pickle.load(f)
 
+
 def test_print_gamelogs(capsys):
     print_gamelogs(test_gamelogs)
     out, err = capsys.readouterr()
     expected = open('test_files/print_gamelogs.out', 'r').read()
     assert out == expected
+
 
 def test_print_gamelogs_none(capsys):
     print_gamelogs([])
@@ -38,7 +39,7 @@ class TestCalculateDFSScore(object):
         self.q = QueryHelpers('2014-12-20', '2014-12-22')
         self.my_query = {'Opp': 'WAS'}
         self.my_query.update(self.q.datetime_range())
-        self.g = FindGamelogs(self.my_query)
+        self.g = QueryGamelogs(self.my_query)
         self.test_dfs_gamelog = {
             'PlusMinus': 19.0,
             'FT': 10.0,
@@ -93,19 +94,6 @@ class TestCalculateDFSScore(object):
     def test_is_not_double_or_triple_double(self):
         assert self.c_dk.is_double_triple_double([9, 8, 4, 3]) == 0
 
-    def test_create_dfs_score_sorted_list(self):
-        assert self.c_dk.create_dfs_scores_sorted_list() == SortedListWithKey(
-            test_sorted_gamelogs, key=lambda val: -val['score'])
-
-    def test_print_top_dfs_scores(self, capsys):
-        my_games = self.g.filter_active_games()
-        CalculateDFSScore(my_games, 'draftkings').print_top_dfs_scores(10)
-
-        out, err = capsys.readouterr()
-        expected = open('./test_files/print_top_dfs_scores.out', 'r').read()
-
-        assert out == expected
-
 
 class TestBasicStatOp(object):
     @classmethod
@@ -137,15 +125,3 @@ class TestQueryHelpers(object):
                 '$gte': datetime.datetime(2014, 12, 20, 0, 0),
                 '$lt': datetime.datetime(2014, 12, 22, 0, 0)
             }}
-
-
-class TestFindGamelogs(object):
-    @classmethod
-    def setup_class(self):
-        self.q = QueryHelpers('2014-12-20', '2014-12-22')
-        self.my_query = {'Opp': 'WAS'}
-        self.my_query.update(self.q.datetime_range())
-        self.g = FindGamelogs(self.my_query)
-
-    def test_filter_active_games(self):
-        assert self.g.filter_active_games() == test_active_games_list
