@@ -4,7 +4,7 @@ import sys
 
 from flask.ext.script import Manager, Server, Shell
 
-from statcruncher import app
+from nba import app
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

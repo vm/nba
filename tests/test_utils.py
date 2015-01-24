@@ -1,6 +1,6 @@
 import pytest
 
-from statcruncher.metrics.utils import *
+from nba.utils import *
 
 
 class TestUtils(object):

@@ -5,9 +5,10 @@ from bs4 import BeautifulSoup
 from collections import OrderedDict
 from mongokit import Connection
 from posixpath import basename
+from pymongo import MongoClient
 from urlparse import urlparse
 
-from models import connection
+connection = MongoClient('mongodb://localhost:27017/')
 
 
 def get_header(table):

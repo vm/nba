@@ -3,8 +3,8 @@ from bson import json_util
 
 from flask import jsonify, render_template, request, Response
 
-from metrics import query
-from statcruncher import app
+import query
+from nba import app
 
 
 @app.route('/')

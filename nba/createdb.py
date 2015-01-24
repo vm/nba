@@ -6,11 +6,12 @@ import sys
 from datetime import datetime
 from itertools import combinations, izip
 from multiprocessing import Pool
-
-from mongokit import Connection
+from pymongo import MongoClient
 
 import utils
-from models import connection, Gamelog, Headtohead, Player
+from models import Gamelog, Headtohead, Player
+
+connection = MongoClient()
 
 
 def find_gamelogs(
@@ -213,11 +214,13 @@ def create_gamelogs_collection(update=True):
     adds new gamelogs, else adds all gamelogs.
     """
 
+    # Deletes all gamelogs from current season.
     if update is True:
         connection.nba.gamelogs.remove({'Year': 2015})
 
     urls = []
     for player in connection.nba.players.find():
+        # If update only adds urls containing 2015, else adds all urls.
         if update is True:
             for url in player['GamelogURLs']:
                 if '2015' in url:
@@ -225,7 +228,7 @@ def create_gamelogs_collection(update=True):
         else:
             urls.extend(player['GamelogURLs'])
 
-    p = Pool(3)
+    p = Pool(4)
     for i, _ in enumerate(p.imap_unordered(gamelogs_from_url, urls), 1):
         sys.stderr.write('\rAdded: {0:%}'.format(i/len(urls)))
 
@@ -242,7 +245,7 @@ def create_headtoheads_collection():
 
     player_combos = list(combinations(player_names, 2))
 
-    p = Pool(5)
+    p = Pool(4)
     for i, _ in enumerate(
             p.imap_unordered(headtoheads_from_combination, player_combos), 1):
         sys.stderr.write('\rAdded: {0:%}'.format(i/len(player_combos)))
@@ -275,4 +278,4 @@ def create_players_collection():
 
 
 if __name__ == '__main__':
-    create_gamelogs_collection(update=False)
+    create_gamelogs_collection(update=True)

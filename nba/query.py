@@ -1,10 +1,10 @@
 import os
 
 import arrow
-from mongokit import Connection
 from sortedcontainers import SortedListWithKey, SortedList
+from pymongo import MongoClient
 
-from models import connection
+connection = MongoClient('mongodb://localhost:27017/')
 
 
 def print_gamelogs(gamelogs):

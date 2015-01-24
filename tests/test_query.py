@@ -5,7 +5,7 @@ import pytest
 from mongokit import ObjectId
 from sortedcontainers import SortedListWithKey
 
-from statcruncher.metrics.query import *
+from nba.query import *
 
 with open('test_files/test_dfs_gamelogs') as f:
     test_dfs_gamelogs = pickle.load(f)
