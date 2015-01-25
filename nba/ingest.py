@@ -6,6 +6,8 @@ import sys
 from datetime import datetime
 from itertools import combinations, izip
 from multiprocessing import Pool
+
+from bs4 import Tag, NavigableString
 from pymongo import MongoClient
 
 import utils
@@ -178,7 +180,6 @@ def table_to_db(
                 else:
                     stat_values.append(text)
             if collection_id == 'headtoheads':
-
                 if col_num == 2:  # Date
                     stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
                 elif col_num == 11 or col_num == 14 or col_num == 17:  # %'s
@@ -257,25 +258,19 @@ def create_players_collection():
 
     br_url = 'http://www.basketball-reference.com'
 
-    names = []
     for letter in string.ascii_lowercase:
         letter_page = utils.soup_from_url(br_url + '/players/%s/' % (letter))
 
         current_names = letter_page.findAll('strong')
         for n in current_names:
             name_data = n.children.next()
-            names.append(
-                (name_data.contents[0], br_url + name_data.attrs['href']))
+            name = name_data.contents[0]
+            player_url = br_url + name_data.attrs['href']
+            gamelog_urls = utils.get_gamelog_urls(player_url)
 
-    for name, player_url in names:
-        gamelog_urls = get_gamelog_urls(player_url)
-        player = dict(
-            Player=name,
-            GamelogURLs=gamelog_urls,
-            URL=player_url)
+            player = dict(
+                Player=name,
+                GamelogURLs=gamelog_urls,
+                URL=player_url)
 
-        connection.nba.players.insert(player)
-
-
-if __name__ == '__main__':
-    create_gamelogs_collection(update=True)
+            connection.nba.players.insert(player)

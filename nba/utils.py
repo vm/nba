@@ -1,12 +1,12 @@
 import os
-import requests
-
-from bs4 import BeautifulSoup
 from collections import OrderedDict
-from mongokit import Connection
 from posixpath import basename
-from pymongo import MongoClient
 from urlparse import urlparse
+
+import requests
+from bs4 import BeautifulSoup
+from mongokit import Connection
+from pymongo import MongoClient
 
 connection = MongoClient('mongodb://localhost:27017/')
 
@@ -29,9 +29,7 @@ def get_column_title(th):
     """Gets the header row of a single column. Used in get_header function.
     """
 
-    return th.replace('%','P') \
-             .replace('3','T') \
-             .replace('+/-','PlusMinus')
+    return th.replace('%','P').replace('3','T').replace('+/-','PlusMinus')
 
 
 def find_player_code(player):
