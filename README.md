@@ -1,6 +1,6 @@
 ## NBA API for Player, Gamelog, Head-to-head data.
 
-![westbrook.gif](http://www.nba.com/media/global/NBA_Twitter_default_logo.gif)
+![nba.gif](http://www.nba.com/media/global/NBA_Twitter_default_logo.gif)
 
 ### Installation
 Clone the repo.
@@ -19,13 +19,13 @@ brew install mongodb
 ```
 
 Create all the data.
-```shell
-$ python
->>> from nba.ingest import (create_players_collection, create_gamelogs_collection,
-        create_headtoheads_collection)
->>> create_players_collection()
->>> create_gamelogs_collection()
->>> create_headtoheads_collection()
+```python
+from nba.ingest import (create_players_collection, create_gamelogs_collection,
+                        create_headtoheads_collection)
+
+create_players_collection()
+create_gamelogs_collection()
+create_headtoheads_collection()
 ```
 
 ### Usage
@@ -36,7 +36,8 @@ $ python manage.py runserver
 
 Make a request.
 ```shell
-$ curl 'http://localhost:5000/api/player?name=LeBron%20James'
+$ curl 'http://127.0.0.1:5000/api/player?name=LeBron%20James'
+$ curl 'http://127.0.0.1:5000/api/gamelogs?name=Stephen%Curry&start=2012-05-07&active=True'
 ```
 
 ### Todo

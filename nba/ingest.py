@@ -7,7 +7,6 @@ from datetime import datetime
 from itertools import combinations, izip
 from multiprocessing import Pool
 
-from bs4 import Tag, NavigableString
 from pymongo import MongoClient
 
 import utils
@@ -32,8 +31,8 @@ def find_gamelogs(
     player_code_1: Basketball-Reference code for one player.
     player_code_2: Basketball-Reference code for another player.
     payload: Payload for a Request.
-    """
 
+    """
     # Only headtohead_url requires a payload.
     table_soup = utils.soup_from_url(url, payload)
 
@@ -94,8 +93,8 @@ def gamelogs_from_url(gamelog_url):
     """
     Finds all gamelogs from a basketball-reference gamelog url to add to
     the database.
-    """
 
+    """
     return find_gamelogs(
         collection_id='gamelogs', url=gamelog_url, reg_table_id='pgl_basic',
         playoff_table_id='pgl_basic_playoffs')
@@ -105,8 +104,8 @@ def headtoheads_from_combination(player_set):
     """
     Adds all headtohead gamelogs between two players to the database given
     two player names in 'FirstName LastName' format.
-    """
 
+    """
     player_code, opp_player_code = player_set
     payload = {
         'p1': player_code, 'p2': opp_player_code, 'request': 1
@@ -136,8 +135,8 @@ def table_to_db(
         of player stats.
     player_code: Player code whose stats are returned.
     opp_player_code: Opponent player code of opponent.
-    """
 
+    """
     if not table:
         return None
 
@@ -213,8 +212,8 @@ def create_gamelogs_collection(update=True):
     """
     Calls gamelogs_from_url for all gamelog_urls. If update is True, only
     adds new gamelogs, else adds all gamelogs.
-    """
 
+    """
     # Deletes all gamelogs from current season.
     if update is True:
         connection.nba.gamelogs.remove({'Year': 2015})
@@ -229,7 +228,7 @@ def create_gamelogs_collection(update=True):
         else:
             urls.extend(player['GamelogURLs'])
 
-    p = Pool(4)
+    p = Pool(20)
     for i, _ in enumerate(p.imap_unordered(gamelogs_from_url, urls), 1):
         sys.stderr.write('\rAdded: {0:%}'.format(i/len(urls)))
 
@@ -237,7 +236,6 @@ def create_gamelogs_collection(update=True):
 def create_headtoheads_collection():
     """Calls headtoheads_from_url for all combinations of two active players.
     """
-
     all_players = connection.nba.players.find({})
     player_names = [
         utils.find_player_code(player['Player'])
@@ -246,7 +244,7 @@ def create_headtoheads_collection():
 
     player_combos = list(combinations(player_names, 2))
 
-    p = Pool(4)
+    p = Pool(20)
     for i, _ in enumerate(
             p.imap_unordered(headtoheads_from_combination, player_combos), 1):
         sys.stderr.write('\rAdded: {0:%}'.format(i/len(player_combos)))
@@ -255,7 +253,6 @@ def create_headtoheads_collection():
 def create_players_collection():
     """Creates a collection of player data for all active players.
     """
-
     br_url = 'http://www.basketball-reference.com'
 
     for letter in string.ascii_lowercase:

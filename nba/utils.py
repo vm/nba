@@ -14,7 +14,6 @@ connection = MongoClient('mongodb://localhost:27017/')
 def get_header(table):
     """Finds and returns the header of a table.
     """
-
     try:
         header = [
             get_column_title(str(th.getText()))  # Gets header text.
@@ -28,7 +27,6 @@ def get_header(table):
 def get_column_title(th):
     """Gets the header row of a single column. Used in get_header function.
     """
-
     return th.replace('%','P').replace('3','T').replace('+/-','PlusMinus')
 
 
@@ -36,8 +34,8 @@ def find_player_code(player):
     """
     Finds a player code given a player name. Returns player_code of player
     if successful, None if player lookup raises KeyError.
-    """
 
+    """
     player_dict = connection.nba.players.find_one(dict(Player=player))
     player_url = player_dict['URL']
 
@@ -60,7 +58,6 @@ def find_player_name(player_code):
 def is_number(s):
     """Checks if a string is a number.
     """
-
     if isinstance(s, str):
         try:
             float(s)
@@ -81,8 +78,8 @@ def soup_from_url(url, payload=None):
     payload: Payload for a Requests url request. In this case, only
         headtohead_url requires a payload (which contains the keys p1, p2 and
         request).
+ 
     """
-
     try:
         if payload:
             r = requests.get(url, params=payload)
@@ -96,7 +93,6 @@ def soup_from_url(url, payload=None):
 def path_components_of_url(url):
     """Splits a url and returns a list of components of the url's path.
     """
-
     o = urlparse(url)
     path_components = o.path.split('/')
     return path_components
@@ -105,7 +101,6 @@ def path_components_of_url(url):
 def get_gamelog_urls(player_url):
     """Returns list of gamelog urls with every year for one player.
     """
-
     table_soup = soup_from_url(player_url)
 
     # Table containing player totals.

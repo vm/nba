@@ -7,7 +7,6 @@ connection = MongoClient('mongodb://localhost:27017/')
 class QueryPlayers(object):
     """Queries some players. This will probably go away at some point.
     """
-
     def query_specific_player(self, player_name=None):
         """Queries for a single player given a string 'FirstName LastName'.
         """
@@ -21,13 +20,12 @@ class QueryPlayers(object):
 class QueryGamelogs(object):
     """Gamelogs based on a given query.
     """
-
     def __init__(self, query):
         """
         Initialized with a MongoDB query, which is a dict such as
         {'PTS': 30, 'Player': 'Kobe Bryant'}
-        """
 
+        """
         self.query = query
         self.is_gamelog = connection.nba.gamelogs.find_one(self.query)
         if self.is_gamelog:  # Only need to get all gamelogs if any exist.
@@ -37,8 +35,8 @@ class QueryGamelogs(object):
         """
         Finds all games in the database from a given query and returns
         list of gamelog dicts.
-        """
 
+        """
         return [gamelog for gamelog in self.gamelogs]
 
     def active_games(self):
@@ -47,8 +45,8 @@ class QueryGamelogs(object):
         is considered active if he was not Inactive, Did Not Play
         (Coach's Decision) or Suspended. Returns list of gamelog dicts if
         self.is_gamelog, else None.
-        """
 
+        """
         if self.is_gamelog:
             return [
                 gamelog for gamelog in self.gamelogs
@@ -60,14 +58,16 @@ class QueryGamelogs(object):
             return None
 
 
-def datetime_range(start, end):
+def datetime_range(start, end=None):
     """
     Returns a dict with one key Date with a start and end time, which can
     be used in a query for gamelogs in a specific date range.
+
     """
+    start_dt = arrow.get(start).datetime.replace(tzinfo=None)
+    if end:
+        end_dt = arrow.get(end).datetime.replace(tzinfo=None)
+    else:
+        end_dt = arrow.now().datetime
 
-    start = arrow.get(start).datetime.replace(tzinfo=None)
-    end = arrow.get(end).datetime.replace(tzinfo=None)
-
-    return {'Date': {'$gte': start, '$lt': end}}
-
+    return {'Date': {'$gte': start_dt, '$lt': end_dt}}
