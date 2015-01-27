@@ -1,1 +1,1 @@
-web: gunicorn nba:app --log-file -
+web: gunicorn --log-file=- runserver:app -w 3
