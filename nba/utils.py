@@ -3,6 +3,7 @@ from collections import OrderedDict
 from posixpath import basename
 from urlparse import urlparse
 
+import arrow
 import requests
 from bs4 import BeautifulSoup
 from mongokit import Connection
@@ -113,3 +114,18 @@ def get_gamelog_urls(player_url):
         for table in all_tables
         for link in table.find('td').findAll("a")
     ]
+
+
+def datetime_range(start, end=None):
+    """
+    Returns a dict with one key Date with a start and end time, which can
+    be used in a query for gamelogs in a specific date range.
+
+    """
+    start_dt = arrow.get(start).datetime.replace(tzinfo=None)
+    if end:
+        end_dt = arrow.get(end).datetime.replace(tzinfo=None)
+    else:
+        end_dt = arrow.now().datetime
+
+    return {'Date': {'$gte': start_dt, '$lt': end_dt}}

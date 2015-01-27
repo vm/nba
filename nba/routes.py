@@ -4,6 +4,7 @@ from bson import json_util
 from flask import jsonify, render_template, request, Response
 
 import query
+import utils
 from nba import app
 
 
@@ -17,8 +18,7 @@ def player():
     """The start of an API route, returns a player's data using ?name='x'.
     """
     name = request.args.get('name')
-    p = query.QueryPlayers()
-    return Response(json.dumps(p.query_specific_player(name),
+    return Response(json.dumps(query.query_specific_player(name),
                                default=json_util.default),
                     mimetype='application/json')
 
@@ -33,11 +33,13 @@ def gamelogs():
     start = request.args.get('start')
     end = request.args.get('end')
     if start:
-        gamelogs_query.update(query.datetime_range(start, end))
+        gamelogs_query.update(utils.datetime_range(start, end))
     active = request.args.get('active')
 
-    g = query.QueryGamelogs(gamelogs_query)
-    gamelogs_list = g.all_games() if active is None else g.active_games()
+    if active is None:
+        gamelogs_list = query.query_games(gamelogs_query)
+    else:
+        gamelogs_list = query.query_games(gamelogs_query, active=True)
 
     return Response(json.dumps(gamelogs_list,
                                default=json_util.default),

@@ -1,1 +1,1 @@
-web: gunicorn statcruncher:app --log-file -
+web: gunicorn nba:app --log-file -

@@ -18,3 +18,12 @@ class DevelopmentConfig(Config):
     USE_RELOADER = True
 
     MONGODB_SETTINGS = {'DB': 'nba'}  # Default DB location for local use.
+
+
+class ProductionConfig(Config):
+    """Heroku config settings.
+    """
+
+    DEBUG = False
+    MONGODB_SETTINGS = {'DB': 'heroku_app33131232',
+                        'host': os.environ['MONGOLAB_URI']}
