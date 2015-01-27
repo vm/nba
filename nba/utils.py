@@ -1,15 +1,19 @@
+
+import arrow
+import requests
 import os
+
 from collections import OrderedDict
 from posixpath import basename
 from urlparse import urlparse
 
-import arrow
-import requests
 from bs4 import BeautifulSoup
 from mongokit import Connection
 from pymongo import MongoClient
 
-connection = MongoClient('mongodb://localhost:27017/')
+from nba import app
+
+connection = MongoClient(app.config['MONGODB_SETTINGS']['host'])
 
 
 def get_header(table):
@@ -79,7 +83,7 @@ def soup_from_url(url, payload=None):
     payload: Payload for a Requests url request. In this case, only
         headtohead_url requires a payload (which contains the keys p1, p2 and
         request).
- 
+
     """
     try:
         if payload:
