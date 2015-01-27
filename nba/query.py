@@ -1,6 +1,9 @@
+
 from pymongo import MongoClient
 
-connection = MongoClient('mongodb://localhost:27017/')
+from nba import app
+
+connection = MongoClient(app.config['MONGODB_SETTINGS']['host'])
 
 
 def query_specific_player(player_name):
