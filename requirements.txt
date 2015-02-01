@@ -1,9 +1,5 @@
-Fabric==1.10.1
 Flask==0.10.1
-Flask-MongoKit==0.6
-Flask-RESTful==0.3.1
 Flask-Script==2.0.5
-Flask-WTF==0.10.3
 Jinja2==2.7.3
 MarkupSafe==0.23
 WTForms==2.0.1
@@ -13,12 +9,8 @@ arrow==0.4.4
 beautifulsoup4==4.3.2
 bson==0.3.3
 ecdsa==0.11
-flask-mongoengine==0.7.1
 gunicorn==19.1.1
 itsdangerous==0.24
-mongoengine==0.8.7
-mongokit==0.9.1.1
-numpy==1.9.1
 paramiko==1.15.2
 py==1.4.26
 pycrypto==2.6.1
@@ -28,5 +20,4 @@ python-dateutil==2.4.0
 pytz==2014.10
 requests==2.5.0
 six==1.9.0
-sortedcontainers==0.9.4
 wsgiref==0.1.2
