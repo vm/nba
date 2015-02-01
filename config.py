@@ -10,7 +10,8 @@ class Config(object):
 
 
 class DevelopmentConfig(Config):
-    """Local development config settings.
+    """
+    Local development config settings.
     """
 
     DEVELOPMENT = True
@@ -24,7 +25,8 @@ class DevelopmentConfig(Config):
 
 
 class ProductionConfig(Config):
-    """Heroku config settings.
+    """
+    Heroku config settings.
     """
 
     DEBUG = False

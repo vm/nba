@@ -7,7 +7,11 @@ connection = MongoClient(app.config['MONGODB_SETTINGS']['host'])
 
 def query_specific_player(player_name):
     """
-    Queries for a single player given a string 'FirstName LastName'.
+    Queries for a single player.
+
+    :param player_name: 'FirstName LastName'
+    :returns: Player dictionary of info.
+    :raises: ValueError if no player found.
     """
 
     if player_name:
@@ -24,7 +28,10 @@ def query_games(query, active=False):
     is considered active if he was not Inactive, Did Not Play
     (Coach's Decision) or Suspended.
 
-    :returns: List of gamelog dicts if is_gamelog, else None
+    :param query:
+    :param active: Filters active games if True, default False.
+    :returns: List of gamelog dicts if is_gamelog, else None.
+    :raises: ValueError if no gamelogs found.
     """
 
     is_gamelog = connection.nba.gamelogs.find_one(query)

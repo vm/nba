@@ -17,19 +17,19 @@ connection = MongoClient(app.config['MONGODB_SETTINGS']['host'])
 
 def find_gamelogs(
         collection_id, url, reg_table_id, playoff_table_id, player_code=None,
-        opp_player_code=None, payload=None):
+        player_code_2=None, payload=None):
     """
     Adds all gamelogs from a basketball-reference url to the database.
-    Returns None if no header if found when the collection_id is
-    'headtoheads', which means the two players never played each other.
 
     :param collection_id: Collection in the nba database.
     :param url: Basketball-Reference url of player gamelogs for a single year.
     :param reg_table_id: Name of the regular season stats table in table_soup.
     :param playoff_table_id: Name of the playoff stats table in table_soup.
-    :param player_code_1: Basketball-Reference code for one player.
+    :param player_code: Basketball-Reference code for one player.
     :param player_code_2: Basketball-Reference code for another player.
     :param payload: Payload for a Request.
+    :returns: None if no header if found when the collection_id is
+        'headtoheads', which means the two players never played each other.
     """
     # Only headtohead_url requires a payload.
     table_soup = utils.soup_from_url(url, payload)
@@ -77,12 +77,12 @@ def find_gamelogs(
             table_to_db(
                 collection_id='headtoheads', table=reg_table,
                 header=hth_header, season='reg', player_code=player_code,
-                opp_player_code=opp_player_code)
+                player_code_2=player_code_2)
             # Adds all gamelogs in playoff table to database.
             table_to_db(
                 collection_id='headtoheads', table=playoff_table,
                 header=hth_header, season='playoff', player_code=player_code,
-                opp_player_code=opp_player_code)
+                player_code_2=player_code_2)
         else:
             return None
 
@@ -91,20 +91,24 @@ def gamelogs_from_url(gamelog_url):
     """
     Finds all gamelogs from a basketball-reference gamelog url to add to
     the database.
+
+    :param gamelog_url:
     """
     return find_gamelogs(
         collection_id='gamelogs', url=gamelog_url, reg_table_id='pgl_basic',
         playoff_table_id='pgl_basic_playoffs')
 
 
-def headtoheads_from_combination(player_set):
+def headtoheads_from_combination(player_combination):
     """
     Adds all headtohead gamelogs between two players to the database given
     two player names in 'FirstName LastName' format.
+
+    :param player_combination: Tuple of player_code and player_code_2.
     """
-    player_code, opp_player_code = player_set
+    player_code, player_code_2 = player_combination
     payload = {
-        'p1': player_code, 'p2': opp_player_code, 'request': 1
+        'p1': player_code, 'p2': player_code_2, 'request': 1
     }
     headtohead_url = ('http://www.basketball-reference.com/play-index/' +
                       'h2h_finder.cgi')
@@ -112,13 +116,13 @@ def headtoheads_from_combination(player_set):
     return find_gamelogs(
         collection_id='headtoheads', url=headtohead_url,
         reg_table_id='stats_games', playoff_table_id='stats_games_playoffs',
-        player_code=player_code, opp_player_code=opp_player_code,
+        player_code=player_code, player_code_2=player_code_2,
         payload=payload)
 
 
 def table_to_db(
         collection_id, table, header, season, url=None, player_code=None,
-        opp_player_code=None):
+        player_code_2=None):
     """
     Adds all gamelogs in a table to the database.
 
@@ -129,7 +133,7 @@ def table_to_db(
     :param url: Basketball-Reference url consisting of gamelogs for a single
         year of player stats.
     :param player_code: Player code whose stats are returned.
-    :param opp_player_code: Opponent player code of opponent.
+    :param player_code_2: Opponent player code of opponent.
     """
     if not table:
         return None
@@ -151,8 +155,8 @@ def table_to_db(
             stat_values = [
                 utils.find_player_name(player_code),  # MainPlayer
                 player_code,  # MainPlayerCode
-                utils.find_player_name(opp_player_code),  # OppPlayer
-                opp_player_code,  # OppPlayerCode
+                utils.find_player_name(player_code_2),  # OppPlayer
+                player_code_2,  # OppPlayerCode
                 season  # Season
             ]
 
@@ -164,8 +168,8 @@ def table_to_db(
             if collection_id == 'gamelogs':
                 if col_num == 2:  # Date
                     stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
-                elif (col_num == 12 or col_num == 15 or col_num == 18):  # %'s
-                    pass  # Skip percentages because we have FG/FGA.
+                elif col_num in {12, 15, 18}:  # Percentages
+                    pass  # Skip percentages, can be manually calculated.
                 elif col_num == 29:  # PlusMinus
                     stat_values.append(0 if text == '' else float(text))
                 elif utils.is_number(text):  # Number
@@ -175,8 +179,8 @@ def table_to_db(
             if collection_id == 'headtoheads':
                 if col_num == 2:  # Date
                     stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
-                elif col_num == 11 or col_num == 14 or col_num == 17:  # %'s
-                    pass  # Skip percentages because we have FG/FGA.
+                elif col_num in {11, 14, 17}:  # Percentages
+                    pass  # Skip percentages, can be manually calculated.
                 elif utils.is_number(text):
                     stat_values.append(float(text))  # Number
                 else:
@@ -186,8 +190,8 @@ def table_to_db(
         # a dictionary, creating a dict of gamelog stats for one game.
         gamelog = dict(izip(header, stat_values))
 
-        # Replaces Player key to player_code_1 if values equal. Otherwise,
-        # converts Player to player_code_2 and player_code_1 to Opp_Player.
+        # Removes Player key and switches MainPlayerCode and OppPlayerCode
+        # keys if the MainPlayerCode is not player_code.
         if collection_id == 'headtoheads':
             gamelog.pop('Player', None)
             if player_code != gamelog['MainPlayerCode']:

@@ -20,12 +20,11 @@ brew install mongodb
 
 Create all the data.
 ```python
-from nba.ingest import (create_players_collection, create_gamelogs_collection,
-                        create_headtoheads_collection)
+from nba.ingest import *
 
 create_players_collection()
-create_gamelogs_collection()
-create_headtoheads_collection()
+create_gamelogs_collection(update=False)
+create_headtoheads_collection()  # This basically never ends. I'll fix that.
 ```
 
 ### Usage
@@ -37,7 +36,7 @@ $ python manage.py runserver
 Make a request.
 ```shell
 $ curl 'http://127.0.0.1:5000/api/player?name=LeBron%20James'
-$ curl 'http://127.0.0.1:5000/api/gamelogs?name=Stephen%Curry&start=2012-05-07&active=True'
+$ curl 'http://127.0.0.1:5000/api/gamelogs?name=Stephen%20Curry&start=2012-05-07'
 ```
 
 ### Todo

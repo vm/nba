@@ -37,8 +37,10 @@ def get_column_title(th):
 
 def find_player_code(player):
     """
-    Finds a player code given a player name. Returns player_code of player
-    if successful, None if player lookup raises KeyError.
+    Finds a player code given a player name.
+
+    :returns: Player_code of player if successful, None if player lookup
+        raises KeyError.
     """
     player_dict = connection.nba.players.find_one(dict(Player=player))
     player_url = player_dict['URL']
@@ -63,6 +65,9 @@ def find_player_name(player_code):
 def is_number(s):
     """
     Checks if a string is a number.
+
+    :returns: True or False
+    :raises: NotImplementedError if not inputted string.
     """
     if isinstance(s, str):
         try:
@@ -79,11 +84,11 @@ def soup_from_url(url, payload=None):
     Uses BeautifulSoup to scrape a website and returns parsed HTML.
 
     :param url: Basketball-Reference url of gamelogs for a single year of
-        player stats
+        player stats.
     :param payload: Payload for a Requests url request, in this case only
         headtohead_url requires a payload containing the keys p1, p2 and
-        request
-    :returns: BeautifulSoup parsed HTML
+        request. Defaults to None.
+    :returns: BeautifulSoup parsed HTML.
     """
     try:
         if payload:
