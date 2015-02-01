@@ -19,9 +19,11 @@ def player():
     The start of an API route, returns a player's data using ?name='x'.
     """
     name = request.args.get('name')
-    return Response(json.dumps(query.query_specific_player(name),
-                               default=json_util.default),
-                    mimetype='application/json')
+    player_dict = query.query_specific_player(name)
+    player_dict.pop("_id", None)
+
+    return Response(json.dumps(player_dict, default=json_util.default),
+                               mimetype='application/json')
 
 
 @app.route('/api/gamelogs', methods=['GET'])
@@ -42,6 +44,8 @@ def gamelogs():
     else:
         gamelogs_list = query.query_games(gamelogs_query, active=True)
 
-    return Response(json.dumps(gamelogs_list,
-                               default=json_util.default),
-                    mimetype='application/json')
+    for gamelog_dict in gamelogs_list:
+        gamelog_dict.pop("_id", None)
+
+    return Response(json.dumps(gamelogs_list, default=json_util.default),
+                               mimetype='application/json')
