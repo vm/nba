@@ -1,11 +1,11 @@
-import json, sys
+import json
 from bson import json_util
 
 from flask import jsonify, render_template, request, Response
 
 import query
-import utils
-from nba import app
+from . import app
+from utils import datetime_range
 
 
 @app.route('/', methods=['GET'])
@@ -15,7 +15,8 @@ def index():
 
 @app.route('/api/player', methods=['GET'])
 def player():
-    """The start of an API route, returns a player's data using ?name='x'.
+    """
+    The start of an API route, returns a player's data using ?name='x'.
     """
     name = request.args.get('name')
     return Response(json.dumps(query.query_specific_player(name),
@@ -33,7 +34,7 @@ def gamelogs():
     start = request.args.get('start')
     end = request.args.get('end')
     if start:
-        gamelogs_query.update(utils.datetime_range(start, end))
+        gamelogs_query.update(datetime_range(start, end))
     active = request.args.get('active')
 
     if active is None:

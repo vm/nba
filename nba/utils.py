@@ -1,23 +1,22 @@
-
-import arrow
-import requests
 import os
-
 from collections import OrderedDict
 from posixpath import basename
 from urlparse import urlparse
 
+import arrow
+import requests
 from bs4 import BeautifulSoup
 from mongokit import Connection
 from pymongo import MongoClient
 
-from nba import app
+from . import app
 
 connection = MongoClient(app.config['MONGODB_SETTINGS']['host'])
 
 
 def get_header(table):
-    """Finds and returns the header of a table.
+    """
+    Finds and returns the header of a table.
     """
     try:
         header = [
@@ -30,7 +29,8 @@ def get_header(table):
 
 
 def get_column_title(th):
-    """Gets the header row of a single column. Used in get_header function.
+    """
+    Gets the header row of a single column. Used in get_header function.
     """
     return th.replace('%','P').replace('3','T').replace('+/-','PlusMinus')
 
@@ -39,7 +39,6 @@ def find_player_code(player):
     """
     Finds a player code given a player name. Returns player_code of player
     if successful, None if player lookup raises KeyError.
-
     """
     player_dict = connection.nba.players.find_one(dict(Player=player))
     player_url = player_dict['URL']
@@ -52,7 +51,8 @@ def find_player_code(player):
 
 
 def find_player_name(player_code):
-    """Finds a player name given a player code
+    """
+    Finds a player name given a player code
     """
     player_dict = connection.nba.players.find_one(
         {"URL": {'$regex': '.*' + player_code + '.*'}})
@@ -61,7 +61,8 @@ def find_player_name(player_code):
 
 
 def is_number(s):
-    """Checks if a string is a number.
+    """
+    Checks if a string is a number.
     """
     if isinstance(s, str):
         try:
@@ -77,13 +78,12 @@ def soup_from_url(url, payload=None):
     """
     Uses BeautifulSoup to scrape a website and returns parsed HTML.
 
-    Arguments:
-    url: Basketball-Reference url of gamelogs for a single year of player
-        stats.
-    payload: Payload for a Requests url request. In this case, only
-        headtohead_url requires a payload (which contains the keys p1, p2 and
-        request).
-
+    :param url: Basketball-Reference url of gamelogs for a single year of
+        player stats
+    :param payload: Payload for a Requests url request, in this case only
+        headtohead_url requires a payload containing the keys p1, p2 and
+        request
+    :returns: BeautifulSoup parsed HTML
     """
     try:
         if payload:
@@ -96,7 +96,8 @@ def soup_from_url(url, payload=None):
 
 
 def path_components_of_url(url):
-    """Splits a url and returns a list of components of the url's path.
+    """
+    Splits a url and returns a list of components of the url's path.
     """
     o = urlparse(url)
     path_components = o.path.split('/')
@@ -104,7 +105,8 @@ def path_components_of_url(url):
 
 
 def get_gamelog_urls(player_url):
-    """Returns list of gamelog urls with every year for one player.
+    """
+    Returns list of gamelog urls with every year for one player.
     """
     table_soup = soup_from_url(player_url)
 
@@ -124,7 +126,6 @@ def datetime_range(start, end=None):
     """
     Returns a dict with one key Date with a start and end time, which can
     be used in a query for gamelogs in a specific date range.
-
     """
     start_dt = arrow.get(start).datetime.replace(tzinfo=None)
     if end:

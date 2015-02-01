@@ -22,7 +22,9 @@ manager.add_command("shell", Shell())
 
 @manager.command
 def runtests():
-    """Runs tests in /tests/."""
+    """
+    Runs tests in /tests/.
+    """
     subprocess.call("cd tests && py.test", shell=True)
 
 

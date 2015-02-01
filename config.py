@@ -17,8 +17,10 @@ class DevelopmentConfig(Config):
     DEBUG = True
     USE_RELOADER = True
 
-    MONGODB_SETTINGS = {'DB': 'nba',
-                        'host': 'mongodb://localhost:27017/'}  # Default DB location for local use.
+    MONGODB_SETTINGS = {
+        'DB': 'nba',
+        'host': 'mongodb://localhost:27017/'
+    }
 
 
 class ProductionConfig(Config):
@@ -26,5 +28,7 @@ class ProductionConfig(Config):
     """
 
     DEBUG = False
-    MONGODB_SETTINGS = {'DB': 'heroku_app33131232',
-                        'host': os.environ['MONGOLAB_URI']}
+    MONGODB_SETTINGS = {
+        'DB': 'heroku_app33131232',
+        'host': os.environ['MONGOLAB_URI']
+    }

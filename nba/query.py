@@ -1,13 +1,13 @@
-
 from pymongo import MongoClient
 
-from nba import app
+from . import app
 
 connection = MongoClient(app.config['MONGODB_SETTINGS']['host'])
 
 
 def query_specific_player(player_name):
-    """Queries for a single player given a string 'FirstName LastName'.
+    """
+    Queries for a single player given a string 'FirstName LastName'.
     """
 
     if player_name:
@@ -24,8 +24,7 @@ def query_games(query, active=False):
     is considered active if he was not Inactive, Did Not Play
     (Coach's Decision) or Suspended.
 
-    Returns list of gamelog dicts if self.is_gamelog, else None.
-
+    :returns: List of gamelog dicts if is_gamelog, else None
     """
 
     is_gamelog = connection.nba.gamelogs.find_one(query)
@@ -33,13 +32,13 @@ def query_games(query, active=False):
     if is_gamelog:
         gamelogs = connection.nba.gamelogs.find(query)
         if active:
-            return [gamelog for gamelog in gamelogs]
+            return gamelogs
         else:
             return [
                 gamelog for gamelog in gamelogs
-                if gamelog['GS'] != 'Inactive'
-                   and gamelog['GS'] != 'Did Not Play'
-                   and gamelog['GS'] != 'Player Suspended'
+                if gamelog['GS'] not in ['Inactive',
+                                         'Did Not Play',
+                                         'Player Suspended']
             ]
     else:
         raise ValueError('No gamelogs found based on query.')

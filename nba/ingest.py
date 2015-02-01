@@ -10,9 +10,9 @@ from multiprocessing import Pool
 from pymongo import MongoClient
 
 import utils
-from models import Gamelog, Headtohead, Player
+from . import app
 
-connection = MongoClient()
+connection = MongoClient(app.config['MONGODB_SETTINGS']['host'])
 
 
 def find_gamelogs(
@@ -23,15 +23,13 @@ def find_gamelogs(
     Returns None if no header if found when the collection_id is
     'headtoheads', which means the two players never played each other.
 
-    Arguments:
-    collection_id: Collection in the nba database.
-    url: Basketball-Reference url of player gamelogs for a single year.
-    reg_table_id: Name of the regular season stats table in table_soup.
-    playoff_table_id: Name of the playoff stats table in table_soup.
-    player_code_1: Basketball-Reference code for one player.
-    player_code_2: Basketball-Reference code for another player.
-    payload: Payload for a Request.
-
+    :param collection_id: Collection in the nba database.
+    :param url: Basketball-Reference url of player gamelogs for a single year.
+    :param reg_table_id: Name of the regular season stats table in table_soup.
+    :param playoff_table_id: Name of the playoff stats table in table_soup.
+    :param player_code_1: Basketball-Reference code for one player.
+    :param player_code_2: Basketball-Reference code for another player.
+    :param payload: Payload for a Request.
     """
     # Only headtohead_url requires a payload.
     table_soup = utils.soup_from_url(url, payload)
@@ -93,7 +91,6 @@ def gamelogs_from_url(gamelog_url):
     """
     Finds all gamelogs from a basketball-reference gamelog url to add to
     the database.
-
     """
     return find_gamelogs(
         collection_id='gamelogs', url=gamelog_url, reg_table_id='pgl_basic',
@@ -104,7 +101,6 @@ def headtoheads_from_combination(player_set):
     """
     Adds all headtohead gamelogs between two players to the database given
     two player names in 'FirstName LastName' format.
-
     """
     player_code, opp_player_code = player_set
     payload = {
@@ -126,16 +122,14 @@ def table_to_db(
     """
     Adds all gamelogs in a table to the database.
 
-    Arguments:
-    collection_id: Name of a collection in the nba database.
-    table: HTML table of gamelog stats for one year.
-    header:Header of the gamelog table, containing strings for each column.
-    season: Season of the gamelog. Either 'reg' or 'playoff'.
-    url: Basketball-Reference url consisting of gamelogs for a single year
-        of player stats.
-    player_code: Player code whose stats are returned.
-    opp_player_code: Opponent player code of opponent.
-
+    :param collection_id: Name of a collection in the nba database.
+    :param table: HTML table of gamelog stats for one year.
+    :param header: Header of the gamelog table.
+    :param season: Season of the gamelog. Either 'reg' or 'playoff'.
+    :param url: Basketball-Reference url consisting of gamelogs for a single
+        year of player stats.
+    :param player_code: Player code whose stats are returned.
+    :param opp_player_code: Opponent player code of opponent.
     """
     if not table:
         return None
@@ -212,7 +206,6 @@ def create_gamelogs_collection(update=True):
     """
     Calls gamelogs_from_url for all gamelog_urls. If update is True, only
     adds new gamelogs, else adds all gamelogs.
-
     """
     # Deletes all gamelogs from current season.
     if update is True:
@@ -234,7 +227,8 @@ def create_gamelogs_collection(update=True):
 
 
 def create_headtoheads_collection():
-    """Calls headtoheads_from_url for all combinations of two active players.
+    """
+    Calls headtoheads_from_url for all combinations of two active players.
     """
     all_players = connection.nba.players.find({})
     player_names = [
@@ -251,7 +245,8 @@ def create_headtoheads_collection():
 
 
 def create_players_collection():
-    """Creates a collection of player data for all active players.
+    """
+    Creates a collection of player data for all active players.
     """
     br_url = 'http://www.basketball-reference.com'
 
