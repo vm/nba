@@ -1,6 +1,6 @@
 import os
 
-from nba import app
+from nba.app import app
 
 def runserver():
     port = int(os.environ.get('PORT', 5000))

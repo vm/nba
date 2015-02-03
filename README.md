@@ -30,13 +30,13 @@ create_headtoheads_collection()  # This basically never ends. I'll fix that.
 ### Usage
 Initialize the server.
 ```shell
-$ python manage.py runserver
+python manage.py runserver
 ```
 
 Make a request.
 ```shell
-$ curl 'http://127.0.0.1:5000/api/player?name=LeBron%20James'
-$ curl 'http://127.0.0.1:5000/api/gamelogs?name=Stephen%20Curry&start=2012-05-07'
+curl 'http://127.0.0.1:5000/api/player?name=LeBron%20James'
+curl 'http://127.0.0.1:5000/api/gamelogs?name=Stephen%20Curry&start=2012-05-07'
 ```
 
 ### Todo

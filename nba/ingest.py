@@ -7,12 +7,8 @@ from datetime import datetime
 from itertools import combinations, izip
 from multiprocessing import Pool
 
-from pymongo import MongoClient
-
 import utils
-from . import app
-
-connection = MongoClient(app.config['MONGODB_SETTINGS']['host'])
+from app import connection
 
 
 def find_gamelogs(

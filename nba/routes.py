@@ -4,7 +4,7 @@ from bson import json_util
 from flask import jsonify, render_template, request, Response
 
 import query
-from . import app
+from app import app
 from utils import datetime_range
 
 

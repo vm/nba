@@ -4,7 +4,8 @@ import sys
 
 from flask.ext.script import Manager, Server, Shell
 
-from nba import app
+from nba.app import app
+from nba.routes import *
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

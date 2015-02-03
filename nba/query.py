@@ -1,8 +1,4 @@
-from pymongo import MongoClient
-
-from . import app
-
-connection = MongoClient(app.config['MONGODB_SETTINGS']['host'])
+from app import connection
 
 
 def query_specific_player(player_name):

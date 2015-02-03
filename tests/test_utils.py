@@ -4,7 +4,6 @@ import pytest
 
 from nba.utils import *
 
-
 def test_is_number_true():
     assert is_number('5') is True
 
@@ -18,9 +17,18 @@ def test_is_number_string():
         is_number(56)
 
 
+def test_find_player_code():
+    assert find_player_code('Kevin Durant') == 'duranke01'
+
+
+def test_find_player_name():
+    assert find_player_name('duranke01') == 'Kevin Durant'
+
+
 def test_path_components_from_url():
-    path_components = ['', 'players', 'd', 'duranke01',
-                       'gamelog', '2014', '']
+    path_components = [
+        '', 'players', 'd', 'duranke01', 'gamelog', '2014', ''
+    ]
     assert path_components == path_components_of_url(
         'http://www.basketball-reference.com/players/d/duranke01/' +
         'gamelog/2014/')
@@ -32,10 +40,9 @@ def test_get_gamelog_header():
         'gamelog/2014/')
     reg_table = gamelog_soup.find('table', attrs={'id': 'pgl_basic'})
     assert get_header(reg_table) == [
-        'Rk',  'G',   'Date', 'Age',  'Tm',  '',    'Opp', 'GS',
-        'MP',  'FG',  'FGA',  'FGP',  'TP',  'TPA', 'TPP', 'FT',
-        'FTA', 'FTP', 'ORB',  'DRB',  'TRB', 'AST', 'STL', 'BLK',
-        'TOV', 'PF',  'PTS',  'GmSc', 'PlusMinus'
+        'Rk', 'G', 'Date', 'Age', 'Tm', '', 'Opp', 'GS', 'MP', 'FG', 'FGA',
+        'FGP', 'TP', 'TPA', 'TPP', 'FT', 'FTA', 'FTP', 'ORB', 'DRB', 'TRB',
+        'AST', 'STL', 'BLK', 'TOV', 'PF', 'PTS', 'GmSc', 'PlusMinus'
     ]
 
 
@@ -56,10 +63,9 @@ def test_get_hth_header():
         'request=1&p1=jamesle01&p2=duranke01#stats_playoffs')
     reg_table = hth_soup.find('table', attrs={'id': 'stats_games'})
     assert get_header(reg_table) == [
-        'Rk',  'Player', 'Date', 'Tm',  '',    'Opp', 'GS',
-        'MP',  'FG',     'FGA',  'FGP', 'TP',  'TPA', 'TPP',
-        'FT',  'FTA',    'FTP',  'ORB', 'DRB', 'TRB', 'AST',
-        'STL', 'BLK',    'TOV',  'PF',  'PTS'
+        'Rk', 'Player', 'Date', 'Tm', '', 'Opp', 'GS', 'MP', 'FG', 'FGA',
+        'FGP', 'TP', 'TPA', 'TPP', 'FT', 'FTA', 'FTP', 'ORB', 'DRB', 'TRB',
+        'AST', 'STL', 'BLK', 'TOV', 'PF', 'PTS'
     ]
 
 
@@ -76,4 +82,5 @@ def test_create_datetime_range():
         'Date': {
             '$gte': datetime.datetime(2014, 12, 20, 0, 0),
             '$lt': datetime.datetime(2014, 12, 22, 0, 0)
-        }}
+        }
+    }

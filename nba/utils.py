@@ -6,12 +6,8 @@ from urlparse import urlparse
 import arrow
 import requests
 from bs4 import BeautifulSoup
-from mongokit import Connection
-from pymongo import MongoClient
 
-from . import app
-
-connection = MongoClient(app.config['MONGODB_SETTINGS']['host'])
+from app import connection
 
 
 def get_header(table):
@@ -39,12 +35,14 @@ def find_player_code(player):
     """
     Finds a player code given a player name.
 
-    :returns: Player_code of player if successful, None if player lookup
-        raises KeyError.
+    :returns: Player_code of player if successful.
+    :raises: ValueError if invalid player name.
     """
     player_dict = connection.nba.players.find_one(dict(Player=player))
-    player_url = player_dict['URL']
+    if not player_dict:
+        raise ValueError('Enter a valid player name.')
 
+    player_url = player_dict['URL']
     player_url_path = urlparse(player_url).path
     bn = basename(player_url_path)
     player_code = os.path.splitext(bn)[0]
