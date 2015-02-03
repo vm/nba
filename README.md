@@ -22,9 +22,9 @@ Create all the data.
 ```python
 from nba.ingest import *
 
-create_players_collection()
-create_gamelogs_collection(update=False)
-create_headtoheads_collection()  # This basically never ends. I'll fix that.
+create('players')
+create('gamelogs', update=False)
+create('headtoheads')  # This basically never ends. I'll fix that.
 ```
 
 ### Usage

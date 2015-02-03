@@ -1,4 +1,4 @@
-from app import connection
+from app import db
 
 
 def query_specific_player(player_name):
@@ -11,8 +11,7 @@ def query_specific_player(player_name):
     """
 
     if player_name:
-        return connection.nba.players.find_one(
-            {'Player': player_name})
+        return db.players.find_one({'Player': player_name})
     else:
         raise ValueError('Specify a player name, please!')
 
@@ -30,10 +29,10 @@ def query_games(query, active=False):
     :raises: ValueError if no gamelogs found.
     """
 
-    is_gamelog = connection.nba.gamelogs.find_one(query)
+    is_gamelog = db.gamelogs.find_one(query)
 
     if is_gamelog:
-        gamelogs = connection.nba.gamelogs.find(query)
+        gamelogs = db.gamelogs.find(query)
         if active:
             return gamelogs
         else:

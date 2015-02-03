@@ -1,6 +1,7 @@
 from __future__ import division
 
 import os
+import re
 import string
 import sys
 from datetime import datetime
@@ -8,7 +9,7 @@ from itertools import combinations, izip
 from multiprocessing import Pool
 
 import utils
-from app import connection
+from app import db
 
 
 def find_gamelogs(
@@ -37,7 +38,7 @@ def find_gamelogs(
     if collection_id == 'gamelogs':
         gamelog_header = (['Player', 'PlayerCode', 'Year', 'Season'] +
                           utils.get_header(reg_table))
-        gamelog_header[9] = 'HomeAway'  # Replaces empty column title.
+        gamelog_header[9] = 'Home'  # Replaces empty column title.
         gamelog_header.insert(11, 'WinLoss')  # Inserts missing column title.
 
         remove_items = ['FGP', 'FTP', 'TPP']
@@ -95,7 +96,7 @@ def gamelogs_from_url(gamelog_url):
         playoff_table_id='pgl_basic_playoffs')
 
 
-def headtoheads_from_combination(player_combination):
+def headtoheads_from_combo(player_combination):
     """
     Adds all headtohead gamelogs between two players to the database given
     two player names in 'FirstName LastName' format.
@@ -157,30 +158,34 @@ def table_to_db(
             ]
 
         # Each column is one stat type.
-        for col_num, col in enumerate(row.findAll('td')):
+        cols = row.findAll('td')
+        for i, col in enumerate(cols):
             text = str(col.getText())
-
-            # Stat values are converted by position based on the collection.
-            if collection_id == 'gamelogs':
-                if col_num == 2:  # Date
-                    stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
-                elif col_num in {12, 15, 18}:  # Percentages
-                    pass  # Skip percentages, can be manually calculated.
-                elif col_num == 29:  # PlusMinus
-                    stat_values.append(0 if text == '' else float(text))
-                elif utils.is_number(text):  # Number
-                    stat_values.append(float(text))
-                else:
-                    stat_values.append(text)
-            if collection_id == 'headtoheads':
-                if col_num == 2:  # Date
-                    stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
-                elif col_num in {11, 14, 17}:  # Percentages
-                    pass  # Skip percentages, can be manually calculated.
-                elif utils.is_number(text):
-                    stat_values.append(float(text))  # Number
-                else:
-                    stat_values.append(text)
+            # Date
+            if i == 2:
+                stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
+            # HomeAway
+            elif ((collection_id == 'gamelogs' and i == 5) or
+                  (collection_id == 'headtoheads' and i == 4)):
+                stat_values.append(False if text == '@' else True)
+            # WinLoss
+            elif collection_id == 'gamelogs' and i == 7:
+                plusminus = re.compile(".*?\((.*?)\)")
+                stat_values.append(float(plusminus.match(text).group(1)))
+            # Percentages
+            # Skip them because they can be calculated manually.
+            elif ((collection_id == 'gamelogs' and i in {12, 15, 18}) or
+                  (collection_id == 'headtoheads' and i in {11, 14, 17})):
+                pass
+            # PlusMinus
+            elif collection_id == 'gamelogs' and i == 29:
+                stat_values.append(0 if text == '' else float(text))
+            # Number
+            elif utils.is_number(text):
+                stat_values.append(float(text))
+            # Text
+            else:
+                stat_values.append(text)
 
         # Zips the each header item and stat value together and adds each into
         # a dictionary, creating a dict of gamelog stats for one game.
@@ -197,9 +202,9 @@ def table_to_db(
                 gamelog['OppPlayer'] = gamelog.pop('MainPlayer')
 
         if collection_id == 'gamelogs':
-            connection.nba.gamelogs.insert(gamelog)
+            db.gamelogs.insert(gamelog)
         else:
-            connection.nba.headtoheads.insert(gamelog)
+            db.headtoheads.insert(gamelog)
 
 
 def create_gamelogs_collection(update=True):
@@ -209,10 +214,10 @@ def create_gamelogs_collection(update=True):
     """
     # Deletes all gamelogs from current season.
     if update is True:
-        connection.nba.gamelogs.remove({'Year': 2015})
+        db.gamelogs.remove({'Year': 2015})
 
     urls = []
-    for player in connection.nba.players.find():
+    for player in db.players.find():
         # If update only adds urls containing 2015, else adds all urls.
         if update is True:
             for url in player['GamelogURLs']:
@@ -230,7 +235,7 @@ def create_headtoheads_collection():
     """
     Calls headtoheads_from_url for all combinations of two active players.
     """
-    all_players = connection.nba.players.find({})
+    all_players = db.players.find({})
     player_names = [
         utils.find_player_code(player['Player'])
         for player in all_players
@@ -265,4 +270,12 @@ def create_players_collection():
                 GamelogURLs=gamelog_urls,
                 URL=player_url)
 
-            connection.nba.players.insert(player)
+            db.players.insert(player)
+
+def create(collection, update=False):
+    if collection == 'players':
+        create_players_collection()
+    elif collection == 'gamelogs':
+        create_gamelogs_collection(update)
+    else:
+        create_headtoheads_collection()

@@ -7,7 +7,7 @@ import arrow
 import requests
 from bs4 import BeautifulSoup
 
-from app import connection
+from app import db
 
 
 def get_header(table):
@@ -38,7 +38,7 @@ def find_player_code(player):
     :returns: Player_code of player if successful.
     :raises: ValueError if invalid player name.
     """
-    player_dict = connection.nba.players.find_one(dict(Player=player))
+    player_dict = db.players.find_one(dict(Player=player))
     if not player_dict:
         raise ValueError('Enter a valid player name.')
 
@@ -54,7 +54,7 @@ def find_player_name(player_code):
     """
     Finds a player name given a player code
     """
-    player_dict = connection.nba.players.find_one(
+    player_dict = db.players.find_one(
         {"URL": {'$regex': '.*' + player_code + '.*'}})
 
     return player_dict['Player']
