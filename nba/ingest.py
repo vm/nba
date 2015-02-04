@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, unicode_literals
 
 import os
 import re
@@ -18,7 +18,7 @@ def find_gamelogs(
     """
     Adds all gamelogs from a basketball-reference url to the database.
 
-    :param collection_id: Collection in the nba database.
+    :param collection_id: Name of a collection in the nba database.
     :param url: Basketball-Reference url of player gamelogs for a single year.
     :param reg_table_id: Name of the regular season stats table in table_soup.
     :param playoff_table_id: Name of the playoff stats table in table_soup.
@@ -26,7 +26,7 @@ def find_gamelogs(
     :param player_code_2: Basketball-Reference code for another player.
     :param payload: Payload for a Request.
     :returns: None if no header if found when the collection_id is
-        'headtoheads', which means the two players never played each other.
+        'headtoheads', meaning the two players never played each other.
     """
     # Only headtohead_url requires a payload.
     table_soup = utils.soup_from_url(url, payload)
@@ -62,7 +62,7 @@ def find_gamelogs(
             hth_header = (['MainPlayer', 'MainPlayerCode', 'OppPlayer',
                            'OppPlayerCode', 'Season'] +
                           hth_header_add)
-            hth_header[9] = 'HomeAway'  # Replaces empty column.
+            hth_header[9] = 'Home'  # Replaces empty column.
             hth_header.insert(11, 'WinLoss')  # Inserts missing column.
 
             # Remove all percentages
@@ -104,11 +104,8 @@ def headtoheads_from_combo(player_combination):
     :param player_combination: Tuple of player_code and player_code_2.
     """
     player_code, player_code_2 = player_combination
-    payload = {
-        'p1': player_code, 'p2': player_code_2, 'request': 1
-    }
-    headtohead_url = ('http://www.basketball-reference.com/play-index/' +
-                      'h2h_finder.cgi')
+    payload = {'p1': player_code, 'p2': player_code_2, 'request': 1}
+    hth_url = 'http://www.basketball-reference.com/play-index/h2h_finder.cgi'
 
     return find_gamelogs(
         collection_id='headtoheads', url=headtohead_url,
@@ -127,10 +124,9 @@ def table_to_db(
     :param table: HTML table of gamelog stats for one year.
     :param header: Header of the gamelog table.
     :param season: Season of the gamelog. Either 'reg' or 'playoff'.
-    :param url: Basketball-Reference url consisting of gamelogs for a single
-        year of player stats.
-    :param player_code: Player code whose stats are returned.
-    :param player_code_2: Opponent player code of opponent.
+    :param url: Basketball-Reference url of player gamelogs for a single year.
+    :param player_code: Basketball-Reference code for one player.
+    :param player_code_2: Basketball-Reference code for another player.
     """
     if not table:
         return None
@@ -143,11 +139,12 @@ def table_to_db(
         if collection_id == 'gamelogs':
             path_components = utils.path_components_of_url(url)
             stat_values = [
-                utils.find_player_name(str(path_components[3])),  # Player
-                str(path_components[3]),  # PlayerCode
-                int(path_components[5]),  # Year
+                utils.find_player_name(path_components[3]),  # Player
+                path_components[3],  # PlayerCode
+                path_components[5],  # Year
                 season  # Season
             ]
+
         else:
             stat_values = [
                 utils.find_player_name(player_code),  # MainPlayer
@@ -164,7 +161,7 @@ def table_to_db(
             # Date
             if i == 2:
                 stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
-            # HomeAway
+            # Home
             elif ((collection_id == 'gamelogs' and i == 5) or
                   (collection_id == 'headtoheads' and i == 4)):
                 stat_values.append(False if text == '@' else True)
@@ -203,6 +200,7 @@ def table_to_db(
 
         if collection_id == 'gamelogs':
             db.gamelogs.insert(gamelog)
+            print gamelog
         else:
             db.headtoheads.insert(gamelog)
 
@@ -249,28 +247,34 @@ def create_headtoheads_collection():
         sys.stderr.write('\rAdded: {0:%}'.format(i/len(player_combos)))
 
 
+def get_player(letter):
+    br_url = 'http://www.basketball-reference.com'
+    letter_page = utils.soup_from_url(br_url + '/players/%s/' % (letter))
+
+    current_names = letter_page.findAll('strong')
+    for n in current_names:
+        name_data = n.children.next()
+        name = name_data.contents[0]
+        player_url = br_url + name_data.attrs['href']
+        gamelog_urls = utils.get_gamelog_urls(player_url)
+
+        player = dict(
+            Player=name,
+            GamelogURLs=gamelog_urls,
+            URL=player_url)
+
+        db.players.insert(player)
+
+
 def create_players_collection():
     """
     Creates a collection of player data for all active players.
     """
-    br_url = 'http://www.basketball-reference.com'
+    p = Pool(26)
+    for i, _ in enumerate(
+            p.imap_unordered(get_player, string.ascii_lowercase), 1):
+        sys.stderr.write('\rAdded: {0:%}'.format(i/len(string.ascii_lowercase)))
 
-    for letter in string.ascii_lowercase:
-        letter_page = utils.soup_from_url(br_url + '/players/%s/' % (letter))
-
-        current_names = letter_page.findAll('strong')
-        for n in current_names:
-            name_data = n.children.next()
-            name = name_data.contents[0]
-            player_url = br_url + name_data.attrs['href']
-            gamelog_urls = utils.get_gamelog_urls(player_url)
-
-            player = dict(
-                Player=name,
-                GamelogURLs=gamelog_urls,
-                URL=player_url)
-
-            db.players.insert(player)
 
 def create(collection, update=False):
     if collection == 'players':
