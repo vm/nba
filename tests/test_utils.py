@@ -49,7 +49,7 @@ def test_get_gamelog_header():
 def test_get_gamelog_urls():
     gamelog_urls = get_gamelog_urls(
         'http://www.basketball-reference.com/players/d/duranke01.html')
-    base = (u'http://www.basketball-reference.com/players/d/duranke01/' +
+    base = ('http://www.basketball-reference.com/players/d/duranke01/' +
             'gamelog/')
     assert gamelog_urls == [
         base + '2008/', base + '2009/', base + '2010/', base + '2011/',

@@ -1,13 +1,15 @@
+import asyncio
 import os
 from collections import OrderedDict
+from datetime import datetime
 from posixpath import basename
-from urlparse import urlparse
+from urllib.parse import urlparse
 
-import arrow
+import aiohttp
 import requests
 from bs4 import BeautifulSoup
 
-from app import db
+from .app import db
 
 
 def get_header(table):
@@ -77,27 +79,6 @@ def is_number(s):
         raise NotImplementedError('Must enter a string.')
 
 
-def soup_from_url(url, payload=None):
-    """
-    Uses BeautifulSoup to scrape a website and returns parsed HTML.
-
-    :param url: Basketball-Reference url of gamelogs for a single year of
-        player stats.
-    :param payload: Payload for a Requests url request, in this case only
-        headtohead_url requires a payload containing the keys p1, p2 and
-        request. Defaults to None.
-    :returns: BeautifulSoup parsed HTML.
-    """
-    try:
-        if payload:
-            r = requests.get(url, params=payload)
-        else:
-            r = requests.get(url)
-        return BeautifulSoup(r.text)
-    except:
-        return None
-
-
 def path_components_of_url(url):
     """
     Splits a url and returns a list of components of the url's path.
@@ -107,33 +88,11 @@ def path_components_of_url(url):
     return path_components
 
 
-def get_gamelog_urls(player_url):
-    """
-    Returns list of gamelog urls with every year for one player.
-    """
-    table_soup = soup_from_url(player_url)
-
-    # Table containing player totals.
-    totals_table = table_soup.find('table', attrs={'id': 'totals'})
-    # All single season tables.
-    all_tables = totals_table.findAll('tr', attrs={'class': 'full_table'})
-
-    return [
-        'http://www.basketball-reference.com' + link.get("href")
-        for table in all_tables
-        for link in table.find('td').findAll("a")
-    ]
-
-
 def datetime_range(start, end=None):
     """
     Returns a dict with one key Date with a start and end time, which can
     be used in a query for gamelogs in a specific date range.
     """
-    start_dt = arrow.get(start).datetime.replace(tzinfo=None)
-    if end:
-        end_dt = arrow.get(end).datetime.replace(tzinfo=None)
-    else:
-        end_dt = arrow.now().datetime
-
+    start_dt = datetime.strptime(start, '%Y-%m-%d')
+    end_dt = datetime.strptime(end, '%Y-%m-%d') if end else datetime.now()
     return {'Date': {'$gte': start_dt, '$lt': end_dt}}

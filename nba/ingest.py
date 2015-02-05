@@ -1,87 +1,202 @@
-from __future__ import division, unicode_literals
-
+import asyncio
 import os
 import re
 import string
 import sys
 from datetime import datetime
-from itertools import combinations, izip
-from multiprocessing import Pool
+from itertools import combinations
 
-import utils
-from app import db
+import aiohttp
+import requests
+from bs4 import BeautifulSoup, SoupStrainer
+
+from . import utils
+from .app import db
+
+sem = asyncio.Semaphore(10)
 
 
+@asyncio.coroutine
+def get(url, **kwargs):
+    r = yield from aiohttp.request('GET', url, **kwargs)
+    return (yield from r.read_and_close())
+
+
+@asyncio.coroutine
 def find_gamelogs(
-        collection_id, url, reg_table_id, playoff_table_id, player_code=None,
+        collection, url, reg_table_id, playoff_table_id, player_code=None,
         player_code_2=None, payload=None):
     """
     Adds all gamelogs from a basketball-reference url to the database.
 
-    :param collection_id: Name of a collection in the nba database.
+    :param collection: Name of a collection in the nba database.
     :param url: Basketball-Reference url of player gamelogs for a single year.
-    :param reg_table_id: Name of the regular season stats table in table_soup.
-    :param playoff_table_id: Name of the playoff stats table in table_soup.
+    :param reg_table_id: Name of the regular season stats table in soup.
+    :param playoff_table_id: Name of the playoff stats table in soup.
     :param player_code: Basketball-Reference code for one player.
     :param player_code_2: Basketball-Reference code for another player.
     :param payload: Payload for a Request.
-    :returns: None if no header if found when the collection_id is
+    :returns: None if no header if found when the collection is
         'headtoheads', meaning the two players never played each other.
     """
-    # Only headtohead_url requires a payload.
-    table_soup = utils.soup_from_url(url, payload)
+    # Only hth_url requires a payload.
+    with (yield from sem):
+        page = yield from get(url)
 
-    reg_table = table_soup.find('table', attrs={'id': reg_table_id})
-    playoff_table = table_soup.find('table', attrs={'id': playoff_table_id})
+    soup = BeautifulSoup(
+        page, parse_only=SoupStrainer('div', attrs={'id': 'page_content'}))
 
-    # Initializes header based on the collection_id.
-    if collection_id == 'gamelogs':
-        gamelog_header = (['Player', 'PlayerCode', 'Year', 'Season'] +
-                          utils.get_header(reg_table))
-        gamelog_header[9] = 'Home'  # Replaces empty column title.
-        gamelog_header.insert(11, 'WinLoss')  # Inserts missing column title.
+    reg_table = soup.find('table', attrs={'id': reg_table_id})
+    playoff_table = soup.find('table', attrs={'id': playoff_table_id})
 
-        remove_items = ['FGP', 'FTP', 'TPP']
-        for item in sorted(remove_items, reverse=True):
-            gamelog_header.remove(item)
+    # Initializes header based on the collection.
+    header_add = utils.get_header(reg_table)
+    # Only adds gamelogs to database if a header is found.
+    # If no header, that means there are no matchups between a player combo.
+    if header_add:
+        header = initialize_header(collection, header_add)
+    else:
+        return None
 
+    if collection == 'gamelogs':
         # Adds all gamelogs in regular season table to database.
         table_to_db(
-            collection_id='gamelogs', table=reg_table, header=gamelog_header,
+            collection='gamelogs', table=reg_table, header=header,
             season='reg', url=url)
         # Adds all gamelogs in playoff table to database.
         table_to_db(
-            collection_id='gamelogs', table=playoff_table,
-            header=gamelog_header, season='playoff', url=url)
+            collection='gamelogs', table=playoff_table,
+            header=header, season='playoff', url=url)
     else:
-        hth_header_add = utils.get_header(reg_table)
+        # Adds all gamelogs in regular season table to database.
+        table_to_db(
+            collection='headtoheads', table=reg_table,
+            header=header, season='reg', player_code=player_code,
+            player_code_2=player_code_2)
+        # Adds all gamelogs in playoff table to database.
+        table_to_db(
+            collection='headtoheads', table=playoff_table,
+            header=header, season='playoff', player_code=player_code,
+            player_code_2=player_code_2)
 
-        # Only adds gamelogs to database if a header is found.
-        # If no header, that means there are no matchups between the players.
-        if hth_header_add:
-            hth_header = (['MainPlayer', 'MainPlayerCode', 'OppPlayer',
-                           'OppPlayerCode', 'Season'] +
-                          hth_header_add)
-            hth_header[9] = 'Home'  # Replaces empty column.
-            hth_header.insert(11, 'WinLoss')  # Inserts missing column.
 
-            # Remove all percentages
-            remove_items = ['FGP', 'FTP', 'TPP']
-            for item in sorted(remove_items, reverse=True):
-                hth_header.remove(item)
+def initialize_header(collection, header_add):
+    if collection == 'gamelogs':
+        header = ['Player', 'PlayerCode', 'Year', 'Season'] + header_add
+        header[9] = 'Home'  # Replaces empty column title.
+        header.insert(11, 'WinLoss')  # Inserts missing column title.
+    else:
+        header = (['MainPlayer', 'MainPlayerCode', 'OppPlayer',
+                   'OppPlayerCode', 'Season'] +
+                  header_add)
+        header[9] = 'Home'  # Replaces empty column.
+        header.insert(11, 'WinLoss')  # Inserts missing column.
 
-            # Adds all gamelogs in regular season table to database.
-            table_to_db(
-                collection_id='headtoheads', table=reg_table,
-                header=hth_header, season='reg', player_code=player_code,
-                player_code_2=player_code_2)
-            # Adds all gamelogs in playoff table to database.
-            table_to_db(
-                collection_id='headtoheads', table=playoff_table,
-                header=hth_header, season='playoff', player_code=player_code,
-                player_code_2=player_code_2)
+    # Remove all percentages
+    remove_items = ['FGP', 'FTP', 'TPP']
+    for item in sorted(remove_items, reverse=True):
+        header.remove(item)
+
+    return header
+
+def table_to_db(
+        collection, table, header, season, url=None, player_code=None,
+        player_code_2=None):
+    """
+    Adds all gamelogs in a table to the database.
+
+    :param collection: Name of a collection in the nba database.
+    :param table: HTML table of gamelog stats for one year.
+    :param header: Header of the gamelog table.
+    :param season: Season of the gamelog. Either 'reg' or 'playoff'.
+    :param url: Basketball-Reference url of player gamelogs for a single year.
+    :param player_code: Basketball-Reference code for one player.
+    :param player_code_2: Basketball-Reference code for another player.
+    """
+    if not table:
+        return None
+
+    rows = [r for r in table.findAll('tr')[1:] if len(r.findAll('td')) > 0]
+
+    # Each row is one gamelog.
+    for row in rows:
+        if collection == 'gamelogs':
+            path_components = utils.path_components_of_url(url)
+            stat_values = [
+                utils.find_player_name(path_components[3]),  # Player
+                path_components[3],  # PlayerCode
+                path_components[5],  # Year
+                season  # Season
+            ]
         else:
-            return None
+            stat_values = [
+                utils.find_player_name(player_code),  # MainPlayer
+                player_code,  # MainPlayerCode
+                utils.find_player_name(player_code_2),  # OppPlayer
+                player_code_2,  # OppPlayerCode
+                season  # Season
+            ]
+
+        # Each column is one stat type.
+        cols = row.findAll('td')
+        stat_values = stat_values_parser(collection, stat_values, cols)
+
+        # Zips the each header item and stat value together and adds each into
+        # a dictionary, creating a dict of gamelog stats for one game.
+        gamelog = dict(list(zip(header, stat_values)))
+
+        if collection == 'gamelogs':
+            db.gamelogs.insert(gamelog)
+        else:
+            update_headtohead_gamelog_keys(gamelog)
+            db.headtoheads.insert(gamelog)
+
+
+def stat_values_parser(collection, stat_values, cols):
+    for i, col in enumerate(cols):
+        text = str(col.getText())
+        # Date
+        if i == 2:
+            stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
+        # Home
+        elif ((collection == 'gamelogs' and i == 5) or
+              (collection == 'headtoheads' and i == 4)):
+            stat_values.append(False if text == '@' else True)
+        # WinLoss
+        elif collection == 'gamelogs' and i == 7:
+            plusminus = re.compile(".*?\((.*?)\)")
+            stat_values.append(float(plusminus.match(text).group(1)))
+        # Percentages
+        # Skip them because they can be calculated manually.
+        elif ((collection == 'gamelogs' and i in {12, 15, 18}) or
+              (collection == 'headtoheads' and i in {11, 14, 17})):
+            pass
+        # PlusMinus
+        elif collection == 'gamelogs' and i == 29:
+            stat_values.append(0 if text == '' else float(text))
+        # Number
+        elif utils.is_number(text):
+            stat_values.append(float(text))
+        # Text
+        else:
+            stat_values.append(text)
+    return stat_values
+
+
+def update_headtohead_gamelog_keys(gamelog):
+    """
+    Removes Player key and switches MainPlayerCode and OppPlayerCode keys if
+    the MainPlayerCode is not player_code.
+
+    Try to make this with dictionary comprehension.
+    """
+    gamelog.pop('Player', None)
+    if player_code != gamelog['MainPlayerCode']:
+        gamelog['MainPlayerCode'] = gamelog.pop('OppPlayerCode')
+        gamelog['OppPlayerCode'] = gamelog.pop('MainPlayerCode')
+        gamelog['MainPlayer'] = gamelog.pop('OppPlayer')
+        gamelog['OppPlayer'] = gamelog.pop('MainPlayer')
+    return gamelog
 
 
 def gamelogs_from_url(gamelog_url):
@@ -92,8 +207,32 @@ def gamelogs_from_url(gamelog_url):
     :param gamelog_url:
     """
     return find_gamelogs(
-        collection_id='gamelogs', url=gamelog_url, reg_table_id='pgl_basic',
+        collection='gamelogs', url=gamelog_url, reg_table_id='pgl_basic',
         playoff_table_id='pgl_basic_playoffs')
+
+
+def create_gamelogs_collection(update=True):
+    """
+    Calls gamelogs_from_url for all gamelog_urls. If update is True, only
+    adds new gamelogs, else adds all gamelogs.
+    """
+    # Deletes all gamelogs from current season.
+    if update:
+        db.gamelogs.remove({'Year': 2015})
+
+    urls = []
+    for player in db.players.find():
+        # If update only adds urls containing 2015, else adds all urls.
+        if update is True:
+            for url in player['GamelogURLs']:
+                if '2015' in url:
+                    urls.append(url)
+        else:
+            urls.extend(player['GamelogURLs'])
+
+    loop = asyncio.get_event_loop()
+    tasks = [gamelogs_from_url(url) for url in urls]
+    loop.run_until_complete(asyncio.wait(tasks))
 
 
 def headtoheads_from_combo(player_combination):
@@ -108,125 +247,10 @@ def headtoheads_from_combo(player_combination):
     hth_url = 'http://www.basketball-reference.com/play-index/h2h_finder.cgi'
 
     return find_gamelogs(
-        collection_id='headtoheads', url=headtohead_url,
+        collection='headtoheads', url=hth_url,
         reg_table_id='stats_games', playoff_table_id='stats_games_playoffs',
         player_code=player_code, player_code_2=player_code_2,
         payload=payload)
-
-
-def table_to_db(
-        collection_id, table, header, season, url=None, player_code=None,
-        player_code_2=None):
-    """
-    Adds all gamelogs in a table to the database.
-
-    :param collection_id: Name of a collection in the nba database.
-    :param table: HTML table of gamelog stats for one year.
-    :param header: Header of the gamelog table.
-    :param season: Season of the gamelog. Either 'reg' or 'playoff'.
-    :param url: Basketball-Reference url of player gamelogs for a single year.
-    :param player_code: Basketball-Reference code for one player.
-    :param player_code_2: Basketball-Reference code for another player.
-    """
-    if not table:
-        return None
-
-    rows = table.findAll('tr')[1:]
-    rows = [r for r in rows if len(r.findAll('td')) > 0]  # Removes header.
-
-    # Each row is one gamelog.
-    for row in rows:
-        if collection_id == 'gamelogs':
-            path_components = utils.path_components_of_url(url)
-            stat_values = [
-                utils.find_player_name(path_components[3]),  # Player
-                path_components[3],  # PlayerCode
-                path_components[5],  # Year
-                season  # Season
-            ]
-
-        else:
-            stat_values = [
-                utils.find_player_name(player_code),  # MainPlayer
-                player_code,  # MainPlayerCode
-                utils.find_player_name(player_code_2),  # OppPlayer
-                player_code_2,  # OppPlayerCode
-                season  # Season
-            ]
-
-        # Each column is one stat type.
-        cols = row.findAll('td')
-        for i, col in enumerate(cols):
-            text = str(col.getText())
-            # Date
-            if i == 2:
-                stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
-            # Home
-            elif ((collection_id == 'gamelogs' and i == 5) or
-                  (collection_id == 'headtoheads' and i == 4)):
-                stat_values.append(False if text == '@' else True)
-            # WinLoss
-            elif collection_id == 'gamelogs' and i == 7:
-                plusminus = re.compile(".*?\((.*?)\)")
-                stat_values.append(float(plusminus.match(text).group(1)))
-            # Percentages
-            # Skip them because they can be calculated manually.
-            elif ((collection_id == 'gamelogs' and i in {12, 15, 18}) or
-                  (collection_id == 'headtoheads' and i in {11, 14, 17})):
-                pass
-            # PlusMinus
-            elif collection_id == 'gamelogs' and i == 29:
-                stat_values.append(0 if text == '' else float(text))
-            # Number
-            elif utils.is_number(text):
-                stat_values.append(float(text))
-            # Text
-            else:
-                stat_values.append(text)
-
-        # Zips the each header item and stat value together and adds each into
-        # a dictionary, creating a dict of gamelog stats for one game.
-        gamelog = dict(izip(header, stat_values))
-
-        # Removes Player key and switches MainPlayerCode and OppPlayerCode
-        # keys if the MainPlayerCode is not player_code.
-        if collection_id == 'headtoheads':
-            gamelog.pop('Player', None)
-            if player_code != gamelog['MainPlayerCode']:
-                gamelog['MainPlayerCode'] = gamelog.pop('OppPlayerCode')
-                gamelog['OppPlayerCode'] = gamelog.pop('MainPlayerCode')
-                gamelog['MainPlayer'] = gamelog.pop('OppPlayer')
-                gamelog['OppPlayer'] = gamelog.pop('MainPlayer')
-
-        if collection_id == 'gamelogs':
-            db.gamelogs.insert(gamelog)
-            print gamelog
-        else:
-            db.headtoheads.insert(gamelog)
-
-
-def create_gamelogs_collection(update=True):
-    """
-    Calls gamelogs_from_url for all gamelog_urls. If update is True, only
-    adds new gamelogs, else adds all gamelogs.
-    """
-    # Deletes all gamelogs from current season.
-    if update is True:
-        db.gamelogs.remove({'Year': 2015})
-
-    urls = []
-    for player in db.players.find():
-        # If update only adds urls containing 2015, else adds all urls.
-        if update is True:
-            for url in player['GamelogURLs']:
-                if '2015' in url:
-                    urls.append(url)
-        else:
-            urls.extend(player['GamelogURLs'])
-
-    p = Pool(20)
-    for i, _ in enumerate(p.imap_unordered(gamelogs_from_url, urls), 1):
-        sys.stderr.write('\rAdded: {0:%}'.format(i/len(urls)))
 
 
 def create_headtoheads_collection():
@@ -241,22 +265,24 @@ def create_headtoheads_collection():
 
     player_combos = list(combinations(player_names, 2))
 
-    p = Pool(20)
-    for i, _ in enumerate(
-            p.imap_unordered(headtoheads_from_combination, player_combos), 1):
-        sys.stderr.write('\rAdded: {0:%}'.format(i/len(player_combos)))
+    loop = asyncio.get_event_loop()
+    tasks = [headtoheads_from_combo(combo) for combo in player_combos]
+    loop.run_until_complete(asyncio.wait(tasks))
 
 
-def get_player(letter):
+@asyncio.coroutine
+def players_from_letter(letter):
     br_url = 'http://www.basketball-reference.com'
-    letter_page = utils.soup_from_url(br_url + '/players/%s/' % (letter))
+    with (yield from sem):
+        letter_page = yield from get(br_url + '/players/%s/' % (letter))
+    soup = BeautifulSoup(letter_page)
 
-    current_names = letter_page.findAll('strong')
+    current_names = soup.findAll('strong')
     for n in current_names:
-        name_data = n.children.next()
+        name_data = next(n.children)
         name = name_data.contents[0]
         player_url = br_url + name_data.attrs['href']
-        gamelog_urls = utils.get_gamelog_urls(player_url)
+        gamelog_urls = get_gamelog_urls(player_url)
 
         player = dict(
             Player=name,
@@ -266,14 +292,32 @@ def get_player(letter):
         db.players.insert(player)
 
 
+def get_gamelog_urls(player_url):
+    """
+    Returns list of gamelog urls with every year for one player.
+    """
+    page = requests.get(player_url)
+    table_soup = BeautifulSoup(page.text)
+
+    # Table containing player totals.
+    totals_table = table_soup.find('table', attrs={'id': 'totals'})
+    # All single season tables.
+    all_tables = totals_table.findAll('tr', attrs={'class': 'full_table'})
+
+    return [
+        'http://www.basketball-reference.com' + link.get("href")
+        for table in all_tables
+        for link in table.find('td').findAll("a")
+    ]
+
+
 def create_players_collection():
     """
     Creates a collection of player data for all active players.
     """
-    p = Pool(26)
-    for i, _ in enumerate(
-            p.imap_unordered(get_player, string.ascii_lowercase), 1):
-        sys.stderr.write('\rAdded: {0:%}'.format(i/len(string.ascii_lowercase)))
+    loop = asyncio.get_event_loop()
+    tasks = [players_from_letter(letter) for letter in string.ascii_lowercase]
+    loop.run_until_complete(asyncio.wait(tasks))
 
 
 def create(collection, update=False):
@@ -283,3 +327,13 @@ def create(collection, update=False):
         create_gamelogs_collection(update)
     else:
         create_headtoheads_collection()
+
+
+def remove_all(collection):
+    if collection == 'players':
+        db.players.remove({})
+    elif collection == 'gamelogs':
+        db.gamelogs.remove({})
+    else:
+        db.headtoheads.remove({})
+    print(('Removed ' + collection + '.'))

@@ -1,4 +1,4 @@
-from app import db
+from .app import db
 
 
 def query_specific_player(player_name):

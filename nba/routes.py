@@ -3,9 +3,9 @@ from bson import json_util
 
 from flask import jsonify, render_template, request, Response
 
-import query
-from app import app
-from utils import datetime_range
+from . import query
+from .app import app
+from .utils import datetime_range
 
 
 @app.route('/', methods=['GET'])
