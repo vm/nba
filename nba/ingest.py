@@ -7,7 +7,6 @@ from datetime import datetime
 from itertools import combinations
 
 import aiohttp
-import requests
 from bs4 import BeautifulSoup, SoupStrainer
 
 from . import utils
@@ -147,6 +146,7 @@ def table_to_db(
 
         if collection == 'gamelogs':
             db.gamelogs.insert(gamelog)
+            print(url)
         else:
             update_headtohead_gamelog_keys(gamelog)
             db.headtoheads.insert(gamelog)
@@ -275,14 +275,16 @@ def players_from_letter(letter):
     br_url = 'http://www.basketball-reference.com'
     with (yield from sem):
         letter_page = yield from get(br_url + '/players/%s/' % (letter))
-    soup = BeautifulSoup(letter_page)
+    soup = BeautifulSoup(
+        letter_page,
+        parse_only=SoupStrainer('div', attrs={'id': 'div_players'}))
 
     current_names = soup.findAll('strong')
     for n in current_names:
         name_data = next(n.children)
         name = name_data.contents[0]
         player_url = br_url + name_data.attrs['href']
-        gamelog_urls = get_gamelog_urls(player_url)
+        gamelog_urls = yield from get_gamelog_urls(player_url)
 
         player = dict(
             Player=name,
@@ -290,14 +292,18 @@ def players_from_letter(letter):
             URL=player_url)
 
         db.players.insert(player)
+        print(name)
 
 
+@asyncio.coroutine
 def get_gamelog_urls(player_url):
     """
     Returns list of gamelog urls with every year for one player.
     """
-    page = requests.get(player_url)
-    table_soup = BeautifulSoup(page.text)
+    with (yield from sem):
+        page = yield from get(player_url)
+    table_soup = BeautifulSoup(
+        page, parse_only=SoupStrainer('div', attrs={'id': 'all_totals'}))
 
     # Table containing player totals.
     totals_table = table_soup.find('table', attrs={'id': 'totals'})
