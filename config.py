@@ -32,5 +32,5 @@ class ProductionConfig(Config):
     DEBUG = False
     MONGODB_SETTINGS = {
         'DB': 'heroku_app33131232',
-        'host': os.environ['MONGOLAB_URI']
+        'host': os.environ.get('MONGOLAB_URI', '')
     }

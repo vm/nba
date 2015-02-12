@@ -1,12 +1,9 @@
-import asyncio
 import os
 from collections import OrderedDict
 from datetime import datetime
 from posixpath import basename
 from urllib.parse import urlparse
 
-import aiohttp
-import requests
 from bs4 import BeautifulSoup
 
 from .app import db

@@ -22,15 +22,17 @@ Create all the data.
 ```python
 from nba.ingest import *
 
-create('players')
-create('gamelogs', update=False)
-create('headtoheads')  # This basically never ends. I'll fix that.
+create_players()
+create_gamelogs(update=False)
+
+# The combinations algorithm needs work, but this runs.
+create_headtoheads()
 ```
 
 ### Usage
 Initialize the server.
 ```shell
-python manage.py runserver
+python main.py
 ```
 
 Make a request.
@@ -38,9 +40,3 @@ Make a request.
 curl 'http://127.0.0.1:5000/api/player?name=LeBron%20James'
 curl 'http://127.0.0.1:5000/api/gamelogs?name=Stephen%20Curry&start=2012-05-07'
 ```
-
-### Todo
-- Celery/async scraping
-- Add more data to Player (shooting hand, DOB, salary, etc.)
-- Look into using stats.nba.com
-- Raise errors instead of returning None?

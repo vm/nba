@@ -39,13 +39,14 @@ def gamelogs():
         gamelogs_query.update(datetime_range(start, end))
     active = request.args.get('active')
 
-    if active is None:
+    if not active:
         gamelogs_list = query.query_games(gamelogs_query)
     else:
         gamelogs_list = query.query_games(gamelogs_query, active=True)
 
-    for gamelog_dict in gamelogs_list:
-        gamelog_dict.pop("_id", None)
+    if gamelogs_list:
+        for gamelog_dict in gamelogs_list:
+            gamelog_dict.pop("_id", None)
 
     return Response(json.dumps(gamelogs_list, default=json_util.default),
                                mimetype='application/json')
