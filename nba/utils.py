@@ -1,8 +1,15 @@
+from __future__ import (
+    print_function, absolute_import, division, unicode_literals)
+
 import os
+import sys
 from collections import OrderedDict
 from datetime import datetime
 from posixpath import basename
-from urllib.parse import urlparse
+if sys.version_info >= (3, 0):
+    from urllib.parse import urlparse
+else:
+    from urlparse import urlparse
 
 from bs4 import BeautifulSoup
 

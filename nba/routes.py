@@ -1,7 +1,10 @@
+from __future__ import (
+    print_function, absolute_import, division, unicode_literals)
+
 import json
 from bson import json_util
 
-from flask import jsonify, render_template, request, Response
+from flask import render_template, request, Response
 
 from . import query
 from .app import app
@@ -23,7 +26,7 @@ def player():
     player_dict.pop("_id", None)
 
     return Response(json.dumps(player_dict, default=json_util.default),
-                               mimetype='application/json')
+                    mimetype='application/json')
 
 
 @app.route('/api/gamelogs', methods=['GET'])
@@ -49,4 +52,4 @@ def gamelogs():
             gamelog_dict.pop("_id", None)
 
     return Response(json.dumps(gamelogs_list, default=json_util.default),
-                               mimetype='application/json')
+                    mimetype='application/json')
