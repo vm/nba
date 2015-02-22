@@ -1,5 +1,5 @@
-from __future__ import (
-    print_function, absolute_import, division, unicode_literals)
+from __future__ import (print_function, absolute_import, division,
+                        unicode_literals)
 
 import os
 import sys
@@ -20,6 +20,12 @@ def get_header(table):
     """
     Finds and returns the header of a table.
     """
+    def get_column_title(th):
+        """
+        Gets the header row of a single column. Used in get_header function.
+        """
+        return th.replace('%','P').replace('3','T').replace('+/-','PlusMinus')
+    
     try:
         header = [
             get_column_title(str(th.getText()))  # Gets header text.
@@ -28,13 +34,6 @@ def get_header(table):
         return list(OrderedDict.fromkeys(header))  # Removes duplicate items.
     except AttributeError:
         return None
-
-
-def get_column_title(th):
-    """
-    Gets the header row of a single column. Used in get_header function.
-    """
-    return th.replace('%','P').replace('3','T').replace('+/-','PlusMinus')
 
 
 def find_player_code(player):
