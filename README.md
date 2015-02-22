@@ -22,11 +22,11 @@ Create all the data.
 ```python
 from nba.ingest import *
 
-create_players()
-create_gamelogs(update=False)
+CollectionCreator('players').create()
+CollectionCreator('gamelogs', update=False).create()
 
 # The combinations algorithm needs work, but this runs.
-create_headtoheads()
+CollectionCreator('headtoheads').create()
 ```
 
 ### Usage

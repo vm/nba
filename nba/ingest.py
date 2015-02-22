@@ -76,9 +76,6 @@ class GamelogIngester(object):
     def initialize_header(self):
         """
         Creates the initial header list.
-
-        :param collection: Name of a collection in the nba database.
-        :param header_add: Header list created in get_header.
         """
         if self.collection == 'gamelogs':
             header = (['Player', 'PlayerCode', 'Year', 'Season'] +
@@ -102,13 +99,8 @@ class GamelogIngester(object):
         """
         Adds all gamelogs in a table to the database.
 
-        :param collection: Name of a collection in the nba database.
-        :param table: HTML table of gamelog stats for one year.
-        :param header: Header of the gamelog table.
+        :param table: Table of gamelog stats for one year.
         :param season: Season of the gamelog. Either 'reg' or 'playoff'.
-        :param url: Basketball-Reference url of player gamelogs for a year.
-        :param player_code: Basketball-Reference code for one player.
-        :param player_code_2: Basketball-Reference code for another player.
         """
         if not table:
             return None
@@ -150,20 +142,22 @@ class GamelogIngester(object):
 
         if self.collection == 'gamelogs':
             db.gamelogs.insert(gamelogs)
-            print(gamelogs)
+            # print(self.url)
         else:
             gamelogs = [
                 self.update_headtohead_gamelog_keys(gamelog)
                 for gamelog in gamelogs
             ]
             db.headtoheads.insert(gamelogs)
-            print(gamelogs)
+            # print(self.player_code, self.player_code_2)
 
     def stat_values_parser(self, stat_values, cols):
         """
-        :param collection: Name of a collection in the nba database.
-        :param stat_values:
-        :param cols:
+        Loops through of a list of columns and returns a list of values
+        which change or skip the col strings based on their content.
+
+        :param stat_values: Initial values list.
+        :param cols: List of column values in a single gamelog.
         """
         for i, col in enumerate(cols):
             text = str(col.getText())
@@ -199,7 +193,7 @@ class GamelogIngester(object):
         Removes Player key and switches MainPlayerCode and OppPlayerCode keys
         if the MainPlayerCode is not player_code.
 
-        Try to make this with dictionary comprehension.
+        :param gamelog:
         """
         gamelog.pop('Player', None)
         if self.player_code != gamelog['MainPlayerCode']:
@@ -224,30 +218,6 @@ def gamelogs_from_url(url):
     return g.find_gamelogs()
 
 
-def create_gamelogs(update=True):
-    """
-    Calls gamelogs_from_url for all gamelog_urls. If update is True, only
-    adds new gamelogs, else adds all gamelogs.
-    """
-    # Deletes all gamelogs from current season.
-    if update is True:
-        db.gamelogs.remove({'Year': 2015})
-
-    urls = []
-    for player in db.players.find():
-        # If update only adds urls containing 2015, else adds all urls.
-        if update is True:
-            for url in player['GamelogURLs']:
-                if '2015' in url:
-                    urls.append(url)
-        else:
-            urls.extend(player['GamelogURLs'])
-
-    p = Pool(8)
-    for i, _ in enumerate(p.imap_unordered(gamelogs_from_url, urls), 1):
-        sys.stderr.write('\rAdded: {0:%}'.format(i/len(urls)))
-
-
 def headtoheads_from_combo(player_combination):
     """
     Adds all headtohead gamelogs between two players to the database given
@@ -262,25 +232,13 @@ def headtoheads_from_combo(player_combination):
     return g.find_gamelogs()
 
 
-def create_headtoheads():
-    """
-    Calls headtoheads_from_url for all combinations of two active players.
-    """
-    all_players = db.players.find({})
-    player_names = [
-        utils.find_player_code(player['Player'])
-        for player in all_players
-    ]
-
-    player_combos = list(combinations(player_names, 2))
-
-    p = Pool(8)
-    for i, _ in enumerate(
-            p.imap_unordered(headtoheads_from_combo, player_combos), 1):
-        sys.stderr.write('\rAdded: {0:%}'.format(i/len(player_combos)))
-
-
 def players_from_letter(letter):
+    """
+    Finds the home urls for all players whose last names start with a
+    a particular letter.
+
+    :param letter: Letter to find all players for.
+    """
     br_url = 'http://www.basketball-reference.com'
     letter_page = requests.get(br_url + '/players/%s/' % (letter)).text
     soup = BeautifulSoup(
@@ -289,47 +247,91 @@ def players_from_letter(letter):
 
     players = []
     current_names = soup.findAll('strong')
+
+    def get_gamelog_urls(player_url):
+        """
+        Returns list of gamelog urls with every year for one player.
+
+        :param player_url:
+        """
+        page = requests.get(player_url).text
+        table_soup = BeautifulSoup(
+            page, parse_only=SoupStrainer('div', attrs={'id': 'all_totals'}))
+
+        # Table containing player totals.
+        totals_table = table_soup.find('table', attrs={'id': 'totals'})
+        # All single season tables.
+        all_tables = totals_table.findAll('tr', attrs={'class': 'full_table'})
+
+        return [
+            'http://www.basketball-reference.com' + link.get("href")
+            for table in all_tables
+            for link in table.find('td').findAll("a")
+        ]
+
     for n in current_names:
         name_data = next(n.children)
         name = name_data.contents[0]
         player_url = br_url + name_data.attrs['href']
         gamelog_urls = get_gamelog_urls(player_url)
 
-        player = dict(
-            Player=name,
-            GamelogURLs=gamelog_urls,
-            URL=player_url)
+        player = {
+            'Player': name,
+            'GamelogURLs': gamelog_urls,
+            'URL': player_url
+        }
         players.append(player)
 
     db.players.insert(players)
 
 
-def get_gamelog_urls(player_url):
-    """
-    Returns list of gamelog urls with every year for one player.
-    """
-    page = requests.get(player_url).text
-    table_soup = BeautifulSoup(
-        page, parse_only=SoupStrainer('div', attrs={'id': 'all_totals'}))
+class CollectionCreator(object):
+    def __init__(self, collection, update=True):
+        self.collection = collection
+        self.update = update
+        self.p = Pool(8)
+        self.options = self.find_options()
 
-    # Table containing player totals.
-    totals_table = table_soup.find('table', attrs={'id': 'totals'})
-    # All single season tables.
-    all_tables = totals_table.findAll('tr', attrs={'class': 'full_table'})
+    def find_options(self):
+        if self.collection == 'gamelogs':
+            # Deletes all gamelogs from current season.
+            if self.update is True:
+                db.gamelogs.remove({'Year': 2015})
 
-    return [
-        'http://www.basketball-reference.com' + link.get("href")
-        for table in all_tables
-        for link in table.find('td').findAll("a")
-    ]
+            urls = []
+            for player in db.players.find():
+                # If self.update only adds urls with 2015, else adds all urls.
+                if self.update is True:
+                    for url in player['GamelogURLs']:
+                        if '2015' in url:
+                            urls.append(url)           
+                else:
+                    urls.extend(player['GamelogURLs'])
+            return urls
 
+        elif self.collection == 'headtoheads':
+            all_players = db.players.find({})
+            player_names = [
+                utils.find_player_code(player['Player'])
+                for player in all_players
+            ]
+            return list(combinations(player_names, 2))
 
-def create_players():
-    """
-    Creates a collection of player data for all active players.
-    """
-    p = Pool(8)
-    letters = string.ascii_lowercase
-    for i, _ in enumerate(
-            p.imap_unordered(get_player, letters), 1):
-        sys.stderr.write('\rAdded: {0:%}'.format(i/len(letters)))
+        else:
+            return string.ascii_lowercase
+
+    def map_call(self, imap_fun):
+        if self.collection == 'gamelogs':
+            for i, _ in enumerate(
+                        self.p.imap_unordered(
+                            imap_fun, self.options), 1):
+                    sys.stderr.write(
+                        '\rAdded: {0:%}'.format(i/len(self.options)))
+
+    def create(self):
+        if self.collection == 'gamelogs':
+            self.map_call(gamelogs_from_url)
+        if self.collection == 'headtoheads':
+            self.map_call(headtoheads_from_combo)
+        else:
+            self.map_call(players_from_letter)
