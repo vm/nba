@@ -17,15 +17,18 @@ from .app import db
 
 
 class GamelogIngester(object):
+    """
+    Adds all the gamelogs on a particular page to the database.
+    """
     def __init__(self, collection, url=None, player_combination=None,
                  output=False):
         """
         :param collection: Name of a collection in the nba database.
-        :param url: Basketball-Reference url of player gamelogs for a year.
-        :param reg_table_id: Name of the regular season stats table in soup.
-        :param playoff_table_id: Name of the playoff stats table in soup.
-        :param player_combination: Basketball-Reference codes for two players.
-        :param output: Whether to print progress or not.
+        :param url: (optional) Basketball-Reference url for a single year
+            of gamelogs for a player to add to gamelogs collection.
+        :param player_combination: (optional) Basketball-Reference codes for
+            two players used to add to headtoheads collection.
+        :param output: (optional) Whether to print progress or not.
         """
         # General
         self.collection = collection
@@ -282,13 +285,25 @@ def players_from_letter(letter):
 
 
 class CollectionCreator(object):
+    """
+    Creates a complete collection of either players or gamelogs.
+    """
     def __init__(self, collection, update=True):
+        """
+        :param collection: Name of a collection in the nba database.
+        :param update: (optional) Whether to only update gamelogs collection.
+        """
         self.collection = collection
         self.update = update
         self.p = Pool(8)
         self.options = self.find_options()
 
     def find_options(self):
+        """
+        Finds a options to add to the database based on the collection.
+
+        :returns: A list of potential options.
+        """
         if self.collection == 'gamelogs':
             # If self.update only adds urls with 2015, else adds all urls.
             if self.update:
@@ -317,10 +332,19 @@ class CollectionCreator(object):
             return string.ascii_lowercase
 
     def map_call(self, func):
+        """
+        Maps a function which adds items to a collection and prints the
+        percentage progress.
+
+        :func: The function to map.
+        """
         for i, _ in enumerate(self.p.imap_unordered(func, self.options), 1):
             sys.stderr.write('\r{0:.{1}%}'.format(i/len(self.options), 2))
 
     def create(self):
+        """
+        Creates a complete collection in the database.
+        """
         if self.collection == 'gamelogs':
             if self.update:
                 # Deletes all gamelogs from current season.
