@@ -3,7 +3,6 @@ from __future__ import (print_function, absolute_import, division,
 
 import os
 import re
-import string
 import sys
 from datetime import datetime
 from itertools import combinations
@@ -41,7 +40,7 @@ class GamelogIngester(object):
             self.playoff_table_id = 'pgl_basic_playoffs'
             self.page = requests.get(self.url).text
         else:
-            self.url = ('http://www.basketball-reference.com/play-index/' +
+            self.url = ('http://www.basketball-reference.com/play-index/'
                         'h2h_finder.cgi')
             self.player_code, self.player_code_2 = player_combination
             self.payload = {
@@ -270,6 +269,7 @@ def players_from_letter(letter):
 
     players = []
     current_names = soup.findAll('strong')
+
     for n in current_names:
         name_data = next(n.children)
         name = name_data.contents[0]
@@ -281,7 +281,10 @@ def players_from_letter(letter):
             'URL': player_url
         }
         players.append(player)
-    db.players.insert(players)
+
+    if players:
+        print(letter)
+        db.players.insert(players)
 
 
 class CollectionCreator(object):
@@ -329,7 +332,7 @@ class CollectionCreator(object):
             return list(combinations(player_names, 2))
 
         else:
-            return string.ascii_lowercase
+            return 'abcdefghijklmnopqrstuvwxyz'
 
     def map_call(self, func):
         """
