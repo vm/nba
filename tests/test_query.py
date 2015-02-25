@@ -9,17 +9,16 @@ class TestQuery(object):
 	def teardown(self):
 		pass
 
-	'''
 	def test_query_specific_player_working(self):
 		assert query_specific_player('Kobe Bryant') == 
 
 	def test_query_specific_player_error(self):
-		assert query_specific_player('Vignesh Mohankumar') == 
+		with pytest.raises(ValueError):
+			query_specific_player('Vignesh Mohankumar')
 
 	def test_query_games_working(self):
 		assert query_games('Kobe Bryant') == 
 
 	def test_query_games_none(self):
-		assert query_games('Vignesh Mohankumar') == 
-
-	'''
+		with pytest.raises(ValueError):
+			query_games('Vignesh Mohankumar')

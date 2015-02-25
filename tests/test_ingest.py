@@ -13,6 +13,9 @@ class TestGamelogIngester(object):
         self.h = GamelogIngester(collection='headtoheads',
                                  player_combination=player_combination)
 
+    def teardown(self):
+        pass
+
     def test_class_attributes(self):
         assert self.g.collection == 'gamelogs'
         assert self.g.output is False
@@ -34,6 +37,9 @@ class TestCollectionCreator(object):
         self.g = CollectionCreator('gamelogs')
         self.h = CollectionCreator('headtoheads')
         self.p = CollectionCreator('players')
+
+    def teardown(self):
+        pass
 
     def test_find_options_gamelogs(self):
         with open('files/gamelogs_options.json', 'r') as f:
