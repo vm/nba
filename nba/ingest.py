@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+from collections import OrderedDict
 from datetime import datetime
 from itertools import combinations, izip
 from urlparse import urlparse
@@ -25,7 +26,6 @@ class Ingester(object):
             to add to gamelogs collection.
         :param player_combo: (optional) Basketball-Reference codes for two players used to add to
             hths collection.
-        :param output: (optional) Whether to print progress or not.
         """
         # General
         self.collection = collection
@@ -63,8 +63,7 @@ class Ingester(object):
             # Creates the complete header by adding missing and fixing titles.
             self.header = self.create_header()
 
-    @staticmethod
-    def get_header(table):
+    def get_header(self, table):
         """
         Finds and returns the header of a table.
 
@@ -116,7 +115,7 @@ class Ingester(object):
             return
 
         rows = table.findAll('tr')
-        del rows[0]  # All rows but header.
+        del rows[0]  # Delete header row.
 
         # Each row is one gamelog.
         gamelogs = []
@@ -149,7 +148,7 @@ class Ingester(object):
         if self.player_code != gamelog['MainPlayerCode']:
             def changer(title):
                 """
-                Switches Main with Opp in the header.
+                Switches items containing Main with Opp in the header.
 
                 :param title: Name to potentially replace.
                 :returns: Replaced title.
@@ -166,9 +165,8 @@ class Ingester(object):
 class GamelogIngester(Ingester):
     def __init__(self, url, output=False):
         """
-        :param gamelogs:
-        :param output:
-        :param url:
+        :param url: Basketball-Reference url for a single year of gamelogs for a player to add to
+            gamelogs collection.
         """
         super(GamelogIngester, self).__init__('gamelogs', output, url=url)
 
@@ -247,6 +245,10 @@ class GamelogIngester(Ingester):
 
 class HthIngester(Ingester):
     def __init__(self, player_combo, output=False):
+        """
+        :param player_combo: Basketball-Reference codes for two players used to add to hths
+            collection.
+        """
         super(HthIngester, self).__init__('hths', output, player_combo=player_combo)
 
     def initialize_header(self):
@@ -315,41 +317,7 @@ class HthIngester(Ingester):
         return stat_values
 
 
-class Creator(object):
-    """
-    Creates a complete collection of either players or gamelogs.
-    """
-    def __init__(self, collection, output=True, update=True):
-        """
-        :param collection: Name of a collection in the nba database.
-        :param update: (optional) Whether to only update gamelogs collection.
-        """
-        self.collection = collection
-        self.output = output
-        self.update = update
-        self.p = Pool(6)
-        self.options = self.find_options()
-
-    def find_options(self):
-        """
-        Finds a options to add to the database based on the collection.
-
-        :returns: A list of potential options.
-        """
-        if self.collection == 'gamelogs':
-            # If self.update only adds urls with 2015, else adds all urls.
-            return [url
-                    for player in db.players.find()
-                    for url in player['GamelogURLs']
-                    if not self.update or '2015' in url]
-        if self.collection == 'hths':
-            player_names = [utils.find_player_code(p['Player']) for p in players]
-            return list(combinations(player_names, 2))
-        else:
-            return 'abcdefghijklmnopqrstuvwxyz'
-
-    @staticmethod
-    def players_from_letter(letter):
+def players_from_letter(letter):
         """
         Finds the home urls for all players whose last names start with a a particular letter.
 
@@ -380,15 +348,56 @@ class Creator(object):
                     for link in table.find('td').findAll('a')]
 
         players = []
-        current_names = soup.findAll('strong')
+        current_names = soup.findAll('strong')  # Current players are noted with bold text.
+
+        # Adds a dict with keys Player, GamelogURLs and URL to players for each current_player.
         for n in current_names:
             name_data = next(n.children)
             name = name_data.contents[0]
-            gamelog_urls = get_gamelog_urls(br_url + name_data.attrs['href'])
+            gamelog_urls = self.get_gamelog_urls(br_url + name_data.attrs['href'])
             players.append({'Player': name, 'GamelogURLs': gamelog_urls, 'URL': player_url})
 
+        # Only inserts if there are any players for the letter.
         if players:
             db.players.insert(players)
+
+class Creator(object):
+    """
+    Creates a complete collection of either players or gamelogs.
+    """
+    def __init__(self, collection, output=True, update=True):
+        """
+        :param collection: Name of a collection in the nba database.
+        :param update: (optional) Whether to only update gamelogs collection.
+        """
+        self.collection = collection
+        self.output = output
+        self.update = update
+        self.p = Pool(6)
+        self.options = self.find_options()
+
+    def find_options(self):
+        """
+        Finds a options to add to the database based on the collection.
+
+        :returns: A list of potential options.
+        """
+        if self.collection == 'gamelogs':
+            # If self.update only adds urls with 2015, else adds all urls.
+            if self.update:
+                return [url
+                        for player in db.players.find()
+                        for url in player['GamelogURLs']
+                        if '2015' in url]
+            else:
+                return [url
+                        for player in db.players.find()
+                        for url in player['GamelogURLs']]
+        if self.collection == 'hths':
+            player_names = [utils.find_player_code(p['Player']) for p in db.players.find()]
+            return list(combinations(player_names, 2))
+        else:
+            return 'abcdefghijklmnopqrstuvwxyz'
 
     def create(self):
         """
@@ -398,11 +407,8 @@ class Creator(object):
             if self.update:
                 # Deletes all gamelogs from current season.
                 db.gamelogs.remove({'Year': 2015})
-            f = lambda url: GamelogIngester(url, output=self.output, update=update).find_gamelogs()
+            self.p.map(lambda url: GamelogIngester(url, output).find_gamelogs(), self.options)
         if self.collection == 'hths':
-            f = lambda combo: HthIngester(combo, output=self.output).find_gamelogs()
+            self.p.map(lambda combo: HthIngester(combo, output).find_gamelogs(), self.options)
         else:
-            f = players_from_letter
-
-        # Maps a function to add options into the database based on the collection.
-        self.p.map(f, self.options)
+            self.p.map(players_from_letter, self.options)

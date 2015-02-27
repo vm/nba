@@ -1,6 +1,5 @@
 import os
 import sys
-from collections import OrderedDict
 from datetime import datetime
 from posixpath import basename
 from urlparse import urlparse
