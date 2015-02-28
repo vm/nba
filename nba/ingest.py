@@ -8,28 +8,27 @@ from urlparse import urlparse
 
 import dill
 import requests
-from pathos.multiprocessing import Pool
 from bs4 import BeautifulSoup, SoupStrainer
+from pathos.multiprocessing import Pool
 
-from . import utils
-from .app import db
+from app import db
+from utils import is_number, find_player_name
 
 
 class Ingester(object):
     """
     Adds all the gamelogs on a particular page to the database.
     """
-    def __init__(self, collection, output, url=None, player_combo=None):
+    def __init__(self, collection, url=None, player_combo=None):
         """
         :param collection: Name of a collection in the nba database.
-        :param url: (optional) Basketball-Reference url for a single year of gamelogs for a player
-            to add to gamelogs collection.
-        :param player_combo: (optional) Basketball-Reference codes for two players used to add to
-            hths collection.
+        :param url: (optional) Basketball-Reference url for a single year of
+            gamelogs for a player to add to gamelogs collection.
+        :param player_combo: (optional) Basketball-Reference codes for two
+            players used to add to hths collection.
         """
         # General
         self.collection = collection
-        self.output = output
 
         # Based on collection
         if self.collection == 'gamelogs':
@@ -41,10 +40,15 @@ class Ingester(object):
             self.page = requests.get(self.url).text
         else:
             # Base url for head2headfinder on basketball reference.
-            self.url = 'http://www.basketball-reference.com/play-index/h2h_finder.cgi'
+            self.url = ('http://www.basketball-reference.com/play-index/'
+                        'h2h_finder.cgi')
             self.player_code, self.player_code_2 = player_combo
             # Params for the payload on a url request.
-            self.payload = {'p1': self.player_code, 'p2': self.player_code_2, 'request': 1}
+            self.payload = {
+                'p1': self.player_code,
+                'p2': self.player_code_2,
+                'request': 1
+            }
             # Name of the regular season table on the page.
             self.regular_table_id='stats_games'
             # Name of the playoff table on the page.
@@ -52,9 +56,12 @@ class Ingester(object):
             self.page = requests.get(self.url, params=self.payload).text
 
         # Scraping
-        self.soup = BeautifulSoup(self.page, parse_only=SoupStrainer('div', {'id': 'page_content'}))
-        self.regular_table = self.soup.find('table', {'id': self.regular_table_id})
-        self.playoff_table = self.soup.find('table', {'id': self.playoff_table_id})
+        page_content = SoupStrainer('div', {'id': 'page_content'})
+        self.soup = BeautifulSoup(self.page, parse_only=page_content)
+        self.regular_table = self.soup.find('table',
+                                            {'id': self.regular_table_id})
+        self.playoff_table = self.soup.find('table',
+                                            {'id': self.playoff_table_id})
 
         # Header
         # Gets the initial header from the basketball reference table.
@@ -70,14 +77,22 @@ class Ingester(object):
         :returns: Header from table.
         :returns: None if AttributeError.
         """
-        # Replaces the titles in header so there are no numbers or symbols.
-        col_title = lambda s: s.replace('%','P').replace('3','T').replace('+/-','PlusMinus')
+        def col_title(th):
+            """
+            Replaces the titles in header so there are no numbers or symbols.
+
+            :param th:
+            """
+            return th.replace('%','P') \
+                     .replace('3','T') \
+                     .replace('+/-','PlusMinus')
+
         try:
             header = [
                 col_title(str(th.getText()))  # Gets header text.
                 for th in table.findAll('th')  # Finds all header titles.
             ]
-            return list(OrderedDict.fromkeys(header))  # Removes duplicate items.
+            return list(OrderedDict.fromkeys(header))  # Removes duplicates.
         except AttributeError:
             return None
 
@@ -128,47 +143,22 @@ class Ingester(object):
             # Each column is one stat type.
             stat_values = self.stat_values_parser(cols, season)
 
-            # Zips the each header item and stat value together and adds each into a dictionary,
-            # creating a dict of gamelog stats for a game.
+            # Zips the each header item and stat value together and adds each
+            # into a dictionary, creating a dict of gamelog stats for a game.
             gamelog = dict(izip(self.header, stat_values))
             gamelogs.append(gamelog)
 
         # Inserts the found gamelogs into the database at once.
         self.gamelogs_insert(gamelogs)
 
-    def update_hth_gamelog_keys(self, gamelog):
-        """
-        Removes Player key and switches MainPlayerCode and OppPlayerCode keys if the MainPlayerCode
-        is not player_code.
-
-        :param gamelog:
-        :returns: Updated gamelog.
-        """
-        gamelog.pop('Player', None)
-        if self.player_code != gamelog['MainPlayerCode']:
-            def changer(title):
-                """
-                Switches items containing Main with Opp in the header.
-
-                :param title: Name to potentially replace.
-                :returns: Replaced title.
-                """
-                if 'Main' in name:
-                    return title.replace('Main', 'Opp')
-                if 'Opp' in name:
-                    return title.replace('Opp', 'Main')
-                return title
-            gamelog = {changer(key): val for key, val in gamelog.items()}
-        return gamelog
-
 
 class GamelogIngester(Ingester):
-    def __init__(self, url, output=False):
+    def __init__(self, url):
         """
-        :param url: Basketball-Reference url for a single year of gamelogs for a player to add to
-            gamelogs collection.
+        :param url: Basketball-Reference url for a single year of gamelogs for
+            a player to add to gamelogs collection.
         """
-        super(GamelogIngester, self).__init__('gamelogs', output, url=url)
+        super(GamelogIngester, self).__init__('gamelogs', url=url)
 
     def initialize_header(self):
         """
@@ -187,11 +177,12 @@ class GamelogIngester(Ingester):
         """
 
         path_components = urlparse(self.url).path.split('/')
+        # Player, PlayerCode, Year, Season.
         return [
-            utils.find_player_name(path_components[3]),  # Player
-            path_components[3],  # PlayerCode
-            path_components[5],  # Year
-            season  # Season
+            find_player_name(path_components[3]),
+            path_components[3],
+            path_components[5],
+            season
         ]
 
     def gamelogs_insert(self, gamelogs):
@@ -201,13 +192,12 @@ class GamelogIngester(Ingester):
         :param gamelogs:
         """
         db.gamelogs.insert(gamelogs)
-        if self.output:
-            print self.url
+        print self.url
 
     def stat_values_parser(self, cols, season):
         """
-        Loops through of a list of columns and returns a list of values which change or skip the
-        col strings based on their content.
+        Loops through of a list of columns and returns a list of values which
+        change or skip the col strings based on their content.
 
         :param stat_values: Initial values list.
         :param cols: List of column values in a single gamelog.
@@ -235,7 +225,7 @@ class GamelogIngester(Ingester):
             elif i == 29:
                 stat_values.append(0 if text == '' else float(text))
             # Number
-            elif utils.is_number(text):
+            elif is_number(text):
                 stat_values.append(float(text))
             # Text
             else:
@@ -244,12 +234,12 @@ class GamelogIngester(Ingester):
 
 
 class HthIngester(Ingester):
-    def __init__(self, player_combo, output=False):
+    def __init__(self, player_combo):
         """
-        :param player_combo: Basketball-Reference codes for two players used to add to hths
-            collection.
+        :param player_combo: Basketball-Reference codes for two players used to
+            add to hths collection.
         """
-        super(HthIngester, self).__init__('hths', output, player_combo=player_combo)
+        super(HthIngester, self).__init__('hths', player_combo=player_combo)
 
     def initialize_header(self):
         """
@@ -257,8 +247,8 @@ class HthIngester(Ingester):
 
         :returns: Initialized header.
         """
-        return (['MainPlayer', 'MainPlayerCode', 'OppPlayer', 'OppPlayerCode', 'Season'] +
-                self.header_add)
+        return (['MainPlayer', 'MainPlayerCode', 'OppPlayer', 'OppPlayerCode',
+                 'Season'] + self.header_add)
 
     def initialize_stat_values(self, season):
         """
@@ -268,11 +258,13 @@ class HthIngester(Ingester):
         :returns: Initialized stat values.
         """
         # MainPlayerCode, MainPlayer, OppPlayerCode, OppPlayerCode, Season
-        return [utils.find_player_name(self.player_code),
-                self.player_code,
-                utils.find_player_name(self.player_code_2),
-                self.player_code_2,
-                season]
+        return [
+            find_player_name(self.player_code),
+            self.player_code,
+            find_player_name(self.player_code_2),
+            self.player_code_2,
+            season
+        ]
 
     def gamelogs_insert(self, gamelogs):
         """
@@ -280,15 +272,14 @@ class HthIngester(Ingester):
 
         :param gamelogs:
         """
-        gamelogs = [self.update_hth_gamelog_keys(gamelog) for gamelog in gamelogs]
+        gamelogs = [self.update_hth_gamelog_keys(g) for g in gamelogs]
         db.hths.insert(gamelogs)
-        if self.output:
-            print self.player_code, self.player_code_2
+        print self.player_code, self.player_code_2
 
     def stat_values_parser(self, cols, season):
         """
-        Loops through of a list of columns and returns a list of values which change or skip the
-        col strings based on their content.
+        Loops through of a list of columns and returns a list of values which
+        change or skip the col strings based on their content.
 
         :param stat_values: Initial values list.
         :param cols: List of column values in a single gamelog.
@@ -309,23 +300,50 @@ class HthIngester(Ingester):
             elif i in {11, 14, 17}:
                 pass
             # Number
-            elif utils.is_number(text):
+            elif is_number(text):
                 stat_values.append(float(text))
             # Text
             else:
                 stat_values.append(text)
         return stat_values
 
+    def update_hth_gamelog_keys(self, gamelog):
+        """
+        Removes Player key and switches MainPlayerCode and OppPlayerCode keys
+        if the MainPlayerCode is not player_code.
+
+        :param gamelog:
+        :returns: Updated gamelog.
+        """
+        gamelog.pop('Player', None)
+        if self.player_code != gamelog['MainPlayerCode']:
+            def changer(title):
+                """
+                Switches items containing Main with Opp in the header.
+
+                :param title: Name to potentially replace.
+                :returns: Replaced title.
+                """
+                if 'Main' in name:
+                    return title.replace('Main', 'Opp')
+                if 'Opp' in name:
+                    return title.replace('Opp', 'Main')
+                return title
+            gamelog = {changer(key): val for key, val in gamelog.items()}
+        return gamelog
+
 
 def players_from_letter(letter):
         """
-        Finds the home urls for all players whose last names start with a a particular letter.
+        Finds the home urls for all players whose last names start with a 
+        particular letter.
 
         :param letter: Letter to find all players for.
         """
         br_url = 'http://www.basketball-reference.com'
         letter_page = requests.get(br_url + '/players/' + letter).text
-        soup = BeautifulSoup(letter_page, parse_only=SoupStrainer('div', {'id': 'div_players'}))
+        div_players = SoupStrainer('div', {'id': 'div_players'})
+        soup = BeautifulSoup(letter_page, parse_only=div_players)
 
         def get_gamelog_urls(player_url):
             """
@@ -335,7 +353,8 @@ def players_from_letter(letter):
             :returns: All the links to seasons for a player.
             """
             page = requests.get(player_url).text
-            table_soup = BeautifulSoup(page, parse_only=SoupStrainer('div', {'id': 'all_totals'}))
+            all_totals = SoupStrainer('div', {'id': 'all_totals'})
+            table_soup = BeautifulSoup(page, parse_only=all_totals)
 
             # Table containing player totals.
             totals_table = table_soup.find('table', {'id': 'totals'})
@@ -343,19 +362,30 @@ def players_from_letter(letter):
             all_tables = totals_table.findAll('tr', {'class': 'full_table'})
 
             # Finds all links in all the season tables.
-            return [br_url + link.get('href')
-                    for table in all_tables
-                    for link in table.find('td').findAll('a')]
+            return [
+                br_url + link.get('href')
+                for table in all_tables
+                for link in table.find('td').findAll('a')
+            ]
 
+        # Current players are noted with bold text.
+        current_names = soup.findAll('strong')
+
+        # Adds a dict with keys Player, GamelogURLs and URL to players for each
+        # current_player.
         players = []
-        current_names = soup.findAll('strong')  # Current players are noted with bold text.
-
-        # Adds a dict with keys Player, GamelogURLs and URL to players for each current_player.
         for n in current_names:
             name_data = next(n.children)
             name = name_data.contents[0]
-            gamelog_urls = self.get_gamelog_urls(br_url + name_data.attrs['href'])
-            players.append({'Player': name, 'GamelogURLs': gamelog_urls, 'URL': player_url})
+            gamelog_urls = self.get_gamelog_urls(br_url +
+                                                 name_data.attrs['href'])
+
+            player = {
+                'Player': name,
+                'GamelogURLs': gamelog_urls,
+                'URL': player_url
+            }
+            players.append(player)
 
         # Only inserts if there are any players for the letter.
         if players:
@@ -365,13 +395,12 @@ class Creator(object):
     """
     Creates a complete collection of either players or gamelogs.
     """
-    def __init__(self, collection, output=True, update=True):
+    def __init__(self, collection, update=True):
         """
         :param collection: Name of a collection in the nba database.
         :param update: (optional) Whether to only update gamelogs collection.
         """
         self.collection = collection
-        self.output = output
         self.update = update
         self.p = Pool(6)
         self.options = self.find_options()
@@ -382,19 +411,20 @@ class Creator(object):
 
         :returns: A list of potential options.
         """
+        players = db.players.find()
         if self.collection == 'gamelogs':
             # If self.update only adds urls with 2015, else adds all urls.
             if self.update:
-                return [url
-                        for player in db.players.find()
-                        for url in player['GamelogURLs']
-                        if '2015' in url]
+                return [
+                    url
+                    for p in players
+                    for url in p['GamelogURLs']
+                    if '2015' in url
+                ]
             else:
-                return [url
-                        for player in db.players.find()
-                        for url in player['GamelogURLs']]
+                return [url for p in players for url in p['GamelogURLs']]
         if self.collection == 'hths':
-            player_names = [utils.find_player_code(p['Player']) for p in db.players.find()]
+            player_names = [find_player_code(p['Player']) for p in players]
             return list(combinations(player_names, 2))
         else:
             return 'abcdefghijklmnopqrstuvwxyz'
@@ -407,8 +437,10 @@ class Creator(object):
             if self.update:
                 # Deletes all gamelogs from current season.
                 db.gamelogs.remove({'Year': 2015})
-            self.p.map(lambda url: GamelogIngester(url, output).find_gamelogs(), self.options)
+            f = lambda url: GamelogIngester(url).find_gamelogs()
+            self.p.map(f, self.options)
         if self.collection == 'hths':
-            self.p.map(lambda combo: HthIngester(combo, output).find_gamelogs(), self.options)
+            f = lambda combo: HthIngester(combo).find_gamelogs()
+            self.p.map(f, self.options)
         else:
             self.p.map(players_from_letter, self.options)

@@ -1,14 +1,11 @@
-from __future__ import (print_function, absolute_import, division,
-                        unicode_literals)
-
 import json
 from bson import json_util
 
 from flask import render_template, request, Response
 
-from . import query
-from .app import app
-from .utils import datetime_range
+import query
+from app import app
+from utils import datetime_range
 
 
 @app.route('/', methods=['GET'])

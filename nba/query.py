@@ -1,7 +1,4 @@
-from __future__ import (print_function, absolute_import, division,
-                        unicode_literals)
-
-from .app import db
+from app import db
 
 
 def query_specific_player(player_name):
