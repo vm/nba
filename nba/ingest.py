@@ -15,7 +15,7 @@ from app import db
 from utils import is_number, find_player_name
 
 
-class Ingester(object):
+class GamelogIngester(object):
     """
     Adds all the gamelogs on a particular page to the database.
     """
@@ -25,7 +25,7 @@ class Ingester(object):
         :param url: (optional) Basketball-Reference url for a single year of
             gamelogs for a player to add to gamelogs collection.
         :param player_combo: (optional) Basketball-Reference codes for two
-            players used to add to hths collection.
+            players used to add to headtoheads collection.
         """
         # General
         self.collection = collection
@@ -50,18 +50,19 @@ class Ingester(object):
                 'request': 1
             }
             # Name of the regular season table on the page.
-            self.regular_table_id='stats_games'
+            self.regular_table_id = 'stats_games'
             # Name of the playoff table on the page.
-            self.playoff_table_id='stats_games_playoffs'
+            self.playoff_table_id = 'stats_games_playoffs'
             self.page = requests.get(self.url, params=self.payload).text
 
         # Scraping
-        page_content = SoupStrainer('div', {'id': 'page_content'})
-        self.soup = BeautifulSoup(self.page, parse_only=page_content)
-        self.regular_table = self.soup.find('table',
-                                            {'id': self.regular_table_id})
-        self.playoff_table = self.soup.find('table',
-                                            {'id': self.playoff_table_id})
+        self.soup = BeautifulSoup(
+            self.page,
+            parse_only=SoupStrainer('div', {'id': 'page_content'}))
+        self.regular_table = self.soup.find(
+            'table', {'id': self.regular_table_id})
+        self.playoff_table = self.soup.find(
+            'table', {'id': self.playoff_table_id})
 
         # Header
         # Gets the initial header from the basketball reference table.
@@ -74,18 +75,18 @@ class Ingester(object):
         """
         Finds and returns the header of a table.
 
-        :returns: Header from table.
-        :returns: None if AttributeError.
+        :returns: Header from table, None if AttributeError.
         """
         def col_title(th):
             """
             Replaces the titles in header so there are no numbers or symbols.
 
-            :param th:
+            :param th: Initial title string.
+            :returns: Reformatted title.
             """
-            return th.replace('%','P') \
-                     .replace('3','T') \
-                     .replace('+/-','PlusMinus')
+            return th.replace('%', 'P') \
+                      .replace('3', 'T') \
+                      .replace('+/-', 'PlusMinus')
 
         try:
             header = [
@@ -152,13 +153,13 @@ class Ingester(object):
         self.gamelogs_insert(gamelogs)
 
 
-class GamelogIngester(Ingester):
+class BasicGamelogIngester(Ingester):
     def __init__(self, url):
         """
         :param url: Basketball-Reference url for a single year of gamelogs for
             a player to add to gamelogs collection.
         """
-        super(GamelogIngester, self).__init__('gamelogs', url=url)
+        super(BasicGamelogIngester, self).__init__('gamelogs', url=url)
 
     def initialize_header(self):
         """
@@ -199,7 +200,6 @@ class GamelogIngester(Ingester):
         Loops through of a list of columns and returns a list of values which
         change or skip the col strings based on their content.
 
-        :param stat_values: Initial values list.
         :param cols: List of column values in a single gamelog.
         :param season: Season of the gamelog. Either 'regular' or 'playoff'.
         :returns: Parsed stat values.
@@ -233,13 +233,14 @@ class GamelogIngester(Ingester):
         return stat_values
 
 
-class HthIngester(Ingester):
+class HeadtoheadGamelogIngester(Ingester):
     def __init__(self, player_combo):
         """
         :param player_combo: Basketball-Reference codes for two players used to
-            add to hths collection.
+            add to headtoheads collection.
         """
-        super(HthIngester, self).__init__('hths', player_combo=player_combo)
+        super(HeadtoheadGamelogIngester, self).__init__(
+            'headtoheads', player_combo=player_combo)
 
     def initialize_header(self):
         """
@@ -272,8 +273,8 @@ class HthIngester(Ingester):
 
         :param gamelogs:
         """
-        gamelogs = [self.update_hth_gamelog_keys(g) for g in gamelogs]
-        db.hths.insert(gamelogs)
+        gamelogs = [self.update_headtohead_gamelog_keys(g) for g in gamelogs]
+        db.headtoheads.insert(gamelogs)
         print self.player_code, self.player_code_2
 
     def stat_values_parser(self, cols, season):
@@ -307,7 +308,7 @@ class HthIngester(Ingester):
                 stat_values.append(text)
         return stat_values
 
-    def update_hth_gamelog_keys(self, gamelog):
+    def update_headtohead_gamelog_keys(self, gamelog):
         """
         Removes Player key and switches MainPlayerCode and OppPlayerCode keys
         if the MainPlayerCode is not player_code.
@@ -333,43 +334,51 @@ class HthIngester(Ingester):
         return gamelog
 
 
-def players_from_letter(letter):
+class PlayerIngester(object):
+    """
+    Adds all players from a letter to the database.
+    """
+    def __init__(self, letter):
+        self.letter = letter
+        self.br_url = 'http://www.basketball-reference.com'
+        self.letter_page = requests.get(
+            self.br_url + '/players/' + letter).text
+        self.soup = BeautifulSoup(
+            self.letter_page,
+            parse_only=SoupStrainer('div', {'id': 'div_players'}))
+
+    def get_gamelog_urls(player_url):
         """
-        Finds the home urls for all players whose last names start with a 
+        Returns list of gamelog urls with every year for one player.
+
+        :param player_url:
+        :returns: All the links to seasons for a player.
+        """
+        page = requests.get(player_url).text
+        table_soup = BeautifulSoup(
+            page,
+            parse_only=SoupStrainer('div', {'id': 'all_totals'}))
+
+        # Table containing player totals.
+        totals_table = table_soup.find('table', {'id': 'totals'})
+        # All single season tables.
+        all_tables = totals_table.findAll('tr', {'class': 'full_table'})
+
+        # Finds all links in all the season tables.
+        return [
+            br_url + link.get('href')
+            for table in all_tables
+            for link in table.find('td').findAll('a')
+        ]
+
+    def find_players():
+        """
+        Finds the home urls for all players whose last names start with a
         particular letter.
-
-        :param letter: Letter to find all players for.
         """
-        br_url = 'http://www.basketball-reference.com'
-        letter_page = requests.get(br_url + '/players/' + letter).text
-        div_players = SoupStrainer('div', {'id': 'div_players'})
-        soup = BeautifulSoup(letter_page, parse_only=div_players)
-
-        def get_gamelog_urls(player_url):
-            """
-            Returns list of gamelog urls with every year for one player.
-
-            :param player_url:
-            :returns: All the links to seasons for a player.
-            """
-            page = requests.get(player_url).text
-            all_totals = SoupStrainer('div', {'id': 'all_totals'})
-            table_soup = BeautifulSoup(page, parse_only=all_totals)
-
-            # Table containing player totals.
-            totals_table = table_soup.find('table', {'id': 'totals'})
-            # All single season tables.
-            all_tables = totals_table.findAll('tr', {'class': 'full_table'})
-
-            # Finds all links in all the season tables.
-            return [
-                br_url + link.get('href')
-                for table in all_tables
-                for link in table.find('td').findAll('a')
-            ]
 
         # Current players are noted with bold text.
-        current_names = soup.findAll('strong')
+        current_names = self.soup.findAll('strong')
 
         # Adds a dict with keys Player, GamelogURLs and URL to players for each
         # current_player.
@@ -377,8 +386,8 @@ def players_from_letter(letter):
         for n in current_names:
             name_data = next(n.children)
             name = name_data.contents[0]
-            gamelog_urls = self.get_gamelog_urls(br_url +
-                                                 name_data.attrs['href'])
+            player_url = self.br_url + name_data.attrs['href']
+            gamelog_urls = self.get_gamelog_urls(player_url)
 
             player = {
                 'Player': name,
@@ -390,6 +399,7 @@ def players_from_letter(letter):
         # Only inserts if there are any players for the letter.
         if players:
             db.players.insert(players)
+
 
 class Creator(object):
     """
@@ -423,24 +433,31 @@ class Creator(object):
                 ]
             else:
                 return [url for p in players for url in p['GamelogURLs']]
-        if self.collection == 'hths':
+        if self.collection == 'headtoheads':
             player_names = [find_player_code(p['Player']) for p in players]
             return list(combinations(player_names, 2))
         else:
             return 'abcdefghijklmnopqrstuvwxyz'
+
+    def mapper(self, f):
+        """
+        Calls Pool map on the given function for self.options.
+
+        :param f: The function to map.
+        """
+        self.p.map(f, self.options)
 
     def create(self):
         """
         Creates a complete collection in the database.
         """
         if self.collection == 'gamelogs':
+            # Deletes all gamelogs from current season if update.
             if self.update:
-                # Deletes all gamelogs from current season.
                 db.gamelogs.remove({'Year': 2015})
-            f = lambda url: GamelogIngester(url).find_gamelogs()
-            self.p.map(f, self.options)
-        if self.collection == 'hths':
-            f = lambda combo: HthIngester(combo).find_gamelogs()
-            self.p.map(f, self.options)
+            self.mapper(lambda u: BasicGamelogIngester(u).find_gamelogs())
+        elif self.collection == 'headtoheads':
+            self.mapper(
+                lambda c: HeadtoheadGamelogIngester(c).find_gamelogs())
         else:
-            self.p.map(players_from_letter, self.options)
+            self.mapper(lambda l: PlayerIngester(l).find_players())

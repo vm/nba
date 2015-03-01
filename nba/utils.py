@@ -51,6 +51,10 @@ def datetime_range(start, end=None):
     """
     Returns a dict with one key Date with a start and end time, which can be
     used in a query for gamelogs in a specific date range.
+
+    :param start: Start date in 'YYYY/MM/DD' format.
+    :param end: (optional) End date in 'YYYY/MM/DD' format.
+    :returns: Dictionary with a datetime range.
     """
     start_range = datetime.strptime(start, '%Y-%m-%d')
     end_range = datetime.strptime(end, '%Y-%m-%d') if end else datetime.now()

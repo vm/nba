@@ -28,3 +28,11 @@ eggs
 parts
 lib64
 .venv
+
+pyre.egg-info/dependency_links.txt
+
+pyre.egg-info/PKG-INFO
+
+pyre.egg-info/top_level.txt
+
+pyre.egg-info/SOURCES.txt
