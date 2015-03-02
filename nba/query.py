@@ -36,11 +36,7 @@ def query_games(query, active=False):
         if active:
             return gamelogs
         else:
-            return [
-                gamelog for gamelog in gamelogs
-                if gamelog['GS'] not in ['Inactive',
-                                         'Did Not Play',
-                                         'Player Suspended']
-            ]
+            dnps = ['Inactive', 'Did Not Play', 'Player Suspended']
+            return filter(lambda gamelog: gamelog['GS'] not in dnps)
     else:
         raise ValueError('No gamelogs found based on query.')
