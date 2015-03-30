@@ -68,24 +68,26 @@ class GamelogIngester(object):
             # Creates the complete header by adding missing and fixing titles.
             self.header = self.create_header()
 
-    def get_header(self, table):
+    @staticmethod
+    def get_header(table):
         """
         Finds and returns the header of a table.
 
         :param table:
         :returns: Header from table, None if AttributeError.
         """
-
-        replacers = [('%', 'P'), ('3', 'T'), ('+/-', 'PlusMinus')]
-        def title_replacer(s):
+        def replacer(title):
             """
             Creates a title by replacing parts of the given string to remove
             any numbers or symbols.
 
-            :param s: Initial title string.
+            :param title: Initial title string.
             :returns: Replaced title.
             """
-            return reduce(lambda s, (i, f): s.replace(i, f), replacers, s)
+            switches = [('%', 'P'), ('3', 'T'), ('+/-', 'PlusMinus')]
+            for (initial, final) in switches:
+                title.replace(initial, final)
+            return title
 
         try:
             header = [
@@ -117,8 +119,11 @@ class GamelogIngester(object):
         header.insert(11, 'WinLoss')  # Inserts missing column.
 
         # Remove all percentages
-        remove_items = ['FGP', 'FTP', 'TPP']
-        return filter(lambda title: title not in remove_items, header)
+        return [
+            title
+            for title in header
+            if title not in {'FGP', 'FTP', 'TPP'}
+        ]
 
     def table_to_db(self, season, table):
         """
@@ -167,7 +172,7 @@ class BasicGamelogIngester(GamelogIngester):
 
         :returns: Initialized header.
         """
-        return (['Player', 'PlayerCode', 'Year', 'Season'] + self.header_add)
+        return ['Player', 'PlayerCode', 'Year', 'Season'] + self.header_add
 
     def initialize_stat_values(self, season):
         """
@@ -186,7 +191,8 @@ class BasicGamelogIngester(GamelogIngester):
             season
         ]
 
-    def gamelogs_insert(self, gamelogs):
+    @staticmethod
+    def gamelogs_insert(gamelogs):
         """
         Adds gamelogs to the database.
 
@@ -272,7 +278,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
 
         :param gamelogs:
         """
-        gamelogs = [self.update_headtohead_gamelog_keys(g) for g in gamelogs]
+        gamelogs = [self.update_gamelog_keys(g) for g in gamelogs]
         db.headtoheads.insert(gamelogs)
 
     def stat_values_parser(self, cols, season):
@@ -306,7 +312,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
                 stat_values.append(text)
         return stat_values
 
-    def update_headtohead_gamelog_keys(self, gamelog):
+    def update_gamelog_keys(self, gamelog):
         """
         Removes Player key and switches MainPlayerCode and OppPlayerCode keys
         if the MainPlayerCode is not player_code.
@@ -420,20 +426,17 @@ class CollectionCreator(object):
         """
         players = db.players.find()
         if self.collection == 'gamelogs':
-            # If self.update only adds urls with 2015, else adds all urls.
-            if self.update:
-                return [
-                    url
-                    for p in players
-                    for url in p['GamelogURLs']
-                    if '2015' in url
-                ]
-            else:
-                return [url for p in players for url in p['GamelogURLs']]
+            self_update = self.update
+            return [
+                url
+                for p in players
+                for url in p['GamelogURLs']
+                if not self_update or '2015' in url
+            ]
         if self.collection == 'headtoheads':
             player_names = [find_player_code(p['Player']) for p in players]
             return list(combinations(player_names, 2))
-        else:
+        if self.collection == 'players':
             return 'abcdefghijklmnopqrstuvwxyz'
 
     def mapper(self, f):
@@ -457,5 +460,5 @@ class CollectionCreator(object):
             f = lambda c: HeadtoheadGamelogIngester(c).find_gamelogs()
         else:
             f = lambda l: PlayerIngester(l).find_players()
-
         self.mapper(f)
+

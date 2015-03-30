@@ -1,6 +1,3 @@
-from __future__ import (print_function, absolute_import, division,
-                        unicode_literals)
-
 from datetime import datetime
 
 import requests
@@ -88,3 +85,4 @@ class TestUtils(object):
                 '$lt': datetime.datetime(2014, 12, 22, 0, 0)
             }
         }
+

@@ -53,3 +53,4 @@ class TestCollectionCreator(object):
 
     def test_find_options_players(self):
         assert self.p.find_options() == 'abcdefghijklmnopqrstuvwxyz'
+

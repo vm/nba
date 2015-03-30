@@ -40,3 +40,4 @@ def query_games(query, active=False):
             return filter(lambda gamelog: gamelog['GS'] not in dnps)
     else:
         raise ValueError('No gamelogs found based on query.')
+

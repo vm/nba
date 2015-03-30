@@ -59,3 +59,4 @@ def datetime_range(start, end=None):
     start_range = datetime.strptime(start, '%Y-%m-%d')
     end_range = datetime.strptime(end, '%Y-%m-%d') if end else datetime.now()
     return {'Date': {'$gte': start_range, '$lt': end_range}}
+
