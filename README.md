@@ -18,11 +18,6 @@ Install [MongoDB](http://docs.mongodb.org/manual/tutorial/getting-started/).
 brew install mongodb
 ```
 
-Install [Pathos](https://github.com/uqfoundation/pathos)
-This one is kind of difficult. Basically, download each of these files and install them.
-- [pyre](http://trac.mystic.cacr.caltech.edu/project/pathos/browser/pathos/external/pyre-0.8.2.0-pathos.zip?rev=674)
-- [processing]()
-
 Create all the data.
 ```python
 from nba.ingest import *

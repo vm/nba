@@ -4,12 +4,11 @@ import sys
 from collections import OrderedDict
 from datetime import datetime
 from itertools import combinations, izip
+from multiprocessing import Pool
 from urlparse import urlparse
 
-import dill
 import requests
 from bs4 import BeautifulSoup, SoupStrainer
-from pathos.multiprocessing import Pool
 
 from app import db
 from utils import is_number, find_player_name, find_player_code
@@ -38,7 +37,7 @@ class GamelogIngester(object):
             # Name of the playoff table on the page.
             self.playoff_id = 'pgl_basic_playoffs'
             self.page = requests.get(self.url).text
-        else:
+        if self.collection == 'headtoheads':
             # Base url for head2headfinder on basketball reference.
             self.url = ('http://www.basketball-reference.com/play-index/'
                         'h2h_finder.cgi')
@@ -86,12 +85,12 @@ class GamelogIngester(object):
             """
             switches = [('%', 'P'), ('3', 'T'), ('+/-', 'PlusMinus')]
             for (initial, final) in switches:
-                title.replace(initial, final)
+                title = title.replace(initial, final)
             return title
 
         try:
             header = [
-                title_replacer(str(th.getText()))  # Gets header text.
+                replacer(str(th.getText()))  # Gets header text.
                 for th in table.findAll('th')  # Finds all header titles.
             ]
             return list(OrderedDict.fromkeys(header))  # Removes duplicates.
@@ -112,6 +111,7 @@ class GamelogIngester(object):
     def create_header(self):
         """
         Creates the initial header.
+
         :returns: Header list.
         """
         header = self.initialize_header()
@@ -185,7 +185,7 @@ class BasicGamelogIngester(GamelogIngester):
         path_components = urlparse(self.url).path.split('/')
         # Player, PlayerCode, Year, Season.
         return [
-            find_player_name(path_components[3]),
+            find_player_name(path_components[3]).replace(' ', ''),
             path_components[3],
             path_components[5],
             season
@@ -217,7 +217,7 @@ class BasicGamelogIngester(GamelogIngester):
                 stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
             # Home
             elif i == 5:
-                stat_values.append(False if text == '@' else True)
+                stat_values.append(not(text == '@'))
             # WinLoss
             elif i == 7:
                 plusminus = re.compile('.*?\((.*?)\)')
@@ -265,9 +265,9 @@ class HeadtoheadGamelogIngester(GamelogIngester):
         """
         # MainPlayerCode, MainPlayer, OppPlayerCode, OppPlayerCode, Season
         return [
-            find_player_name(self.player_code),
+            find_player_name(self.player_code).replace(' ', ''),
             self.player_code,
-            find_player_name(self.player_code_2),
+            find_player_name(self.player_code_2).replace(' ', ''),
             self.player_code_2,
             season
         ]
@@ -278,7 +278,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
 
         :param gamelogs:
         """
-        gamelogs = [self.update_gamelog_keys(g) for g in gamelogs]
+        gamelogs = [self.update_gamelog_keys(gamelog) for gamelog in gamelogs]
         db.headtoheads.insert(gamelogs)
 
     def stat_values_parser(self, cols, season):
@@ -299,7 +299,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
                 stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
             # Home
             elif i == 4:
-                stat_values.append(False if text == '@' else True)
+                stat_values.append(not(text == '@'))
             # Percentages
             # Skip them because they can be calculated manually.
             elif i in {11, 14, 17}:
@@ -382,7 +382,7 @@ class PlayerIngester(object):
         name_data = next(name.children)
         player_url = self.br_url + name_data.attrs['href']
         return {
-            'Player': name_data.contents[0],
+            'Player': name_data.contents[0].replace(' ', ''),
             'GamelogURLs': self.get_gamelog_urls(player_url),
             'URL': player_url
         }
@@ -402,6 +402,19 @@ class PlayerIngester(object):
         # Only inserts if there are any players for the letter.
         if players:
             db.players.insert(players)
+
+
+# Multiprocessing forces these functions to be top level and non-lambdas.
+def gamelogs_from_url(url):
+    BasicGamelogIngester(url).find_gamelogs()
+
+
+def headtoheads_from_combo(combo):
+    HeadtoheadGamelogIngester(combo).find_gamelogs()
+
+
+def players_from_letter(letter):
+    PlayerIngester(letter).find_players()
 
 
 class CollectionCreator(object):
@@ -429,12 +442,15 @@ class CollectionCreator(object):
             self_update = self.update
             return [
                 url
-                for p in players
-                for url in p['GamelogURLs']
+                for player in players
+                for url in player['GamelogURLs']
                 if not self_update or '2015' in url
             ]
         if self.collection == 'headtoheads':
-            player_names = [find_player_code(p['Player']) for p in players]
+            player_names = [
+                find_player_code(player['Player'])
+                for p in players
+            ]
             return list(combinations(player_names, 2))
         if self.collection == 'players':
             return 'abcdefghijklmnopqrstuvwxyz'
@@ -455,10 +471,10 @@ class CollectionCreator(object):
             # Deletes all gamelogs from current season if update.
             if self.update:
                 db.gamelogs.remove({'Year': 2015})
-            f = lambda u: BasicGamelogIngester(u).find_gamelogs()
-        elif self.collection == 'headtoheads':
-            f = lambda c: HeadtoheadGamelogIngester(c).find_gamelogs()
-        else:
-            f = lambda l: PlayerIngester(l).find_players()
+            f = gamelogs_from_url
+        if self.collection == 'headtoheads':
+            f = headtoheads_from_combo
+        if self.collection == 'players':
+            f = players_from_letter
         self.mapper(f)
 
