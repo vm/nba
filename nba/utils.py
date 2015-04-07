@@ -44,7 +44,7 @@ def is_number(s):
         except ValueError:
             return False
     else:
-        raise NotImplementedError('Must enter a string.')
+        raise TypeError('Must enter a string.')
 
 
 def datetime_range(start, end=None):
