@@ -102,11 +102,9 @@ class GamelogIngester(object):
         Adds all gamelogs from a basketball-reference url to the database.
         """
         # If no header, that means no matchups between a player combo exist.
-        if not self.header_add:
-            return
-
-        self.table_to_db('regular', self.regular_table)
-        self.table_to_db('playoff', self.playoff_table)
+        if self.header_add:
+            self.table_to_db('regular', self.regular_table)
+            self.table_to_db('playoff', self.playoff_table)
 
     def create_header(self):
         """
@@ -156,6 +154,43 @@ class GamelogIngester(object):
 
         # Inserts the found gamelogs into the database at once.
         self.gamelogs_insert(gamelogs)
+
+    def stat_values_parser(self, cols, season, offset=0):
+        """
+        Loops through of a list of columns and returns a list of values which
+        change or skip the col strings based on their content.
+
+        :param cols: List of column values in a single gamelog.
+        :param season: Season of the gamelog. Either 'regular' or 'playoff'.
+        :returns: Parsed stat values.
+        """
+        stat_values = self.initialize_stat_values(season)
+        for i, col in enumerate(cols):
+            text = str(col.getText())
+            # Date
+            if i == 2:
+                stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
+            # Home
+            elif i == 4 + offset:
+                stat_values.append(text != '@')
+            # WinLoss
+            elif i == 7 and not offset:
+                plusminus = re.compile('.*?\((.*?)\)')
+                stat_values.append(float(plusminus.match(text).group(1)))
+            # Percentages
+            # Skip them because they can be calculated manually.
+            elif i in {i + offset for i in (12, 15, 18)}:
+                pass
+            # PlusMinus
+            elif i == 29 and not offset:
+                stat_values.append(0 if text == '' else float(text))
+            # Number
+            elif is_number(text):
+                stat_values.append(float(text))
+            # Text
+            else:
+                stat_values.append(text)
+        return stat_values
 
 
 class BasicGamelogIngester(GamelogIngester):
@@ -209,34 +244,8 @@ class BasicGamelogIngester(GamelogIngester):
         :param season: Season of the gamelog. Either 'regular' or 'playoff'.
         :returns: Parsed stat values.
         """
-        stat_values = self.initialize_stat_values(season)
-        for i, col in enumerate(cols):
-            text = str(col.getText())
-            # Date
-            if i == 2:
-                stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
-            # Home
-            elif i == 5:
-                stat_values.append(not(text == '@'))
-            # WinLoss
-            elif i == 7:
-                plusminus = re.compile('.*?\((.*?)\)')
-                stat_values.append(float(plusminus.match(text).group(1)))
-            # Percentages
-            # Skip them because they can be calculated manually.
-            elif i in {12, 15, 18}:
-                pass
-            # PlusMinus
-            elif i == 29:
-                stat_values.append(0 if text == '' else float(text))
-            # Number
-            elif is_number(text):
-                stat_values.append(float(text))
-            # Text
-            else:
-                stat_values.append(text)
-        return stat_values
-
+        return super(BasicGameLogIngester, self).stat_values_parser(cols, 
+                season, offset=1)
 
 class HeadtoheadGamelogIngester(GamelogIngester):
     def __init__(self, player_combo):
@@ -291,27 +300,8 @@ class HeadtoheadGamelogIngester(GamelogIngester):
         :param season: Season of the gamelog. Either 'regular' or 'playoff'.
         :returns: Parsed stat values.
         """
-        stat_values = self.initialize_stat_values(season)
-        for i, col in enumerate(cols):
-            text = str(col.getText())
-            # Date
-            if i == 2:
-                stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
-            # Home
-            elif i == 4:
-                stat_values.append(not(text == '@'))
-            # Percentages
-            # Skip them because they can be calculated manually.
-            elif i in {11, 14, 17}:
-                pass
-            # Number
-            elif is_number(text):
-                stat_values.append(float(text))
-            # Text
-            else:
-                stat_values.append(text)
-        return stat_values
-
+        return super(HeadtoheadGamelogIngester, self).stat_values_parser(cols, 
+                season, offset=1)
     def update_gamelog_keys(self, gamelog):
         """
         Removes Player key and switches MainPlayerCode and OppPlayerCode keys
@@ -331,9 +321,8 @@ class HeadtoheadGamelogIngester(GamelogIngester):
                 """
                 if 'Main' in name:
                     return title.replace('Main', 'Opp')
-                if 'Opp' in name:
+                else:
                     return title.replace('Opp', 'Main')
-                return title
             gamelog = {changer(key): val for key, val in gamelog.items()}
         return gamelog
 
@@ -346,7 +335,7 @@ class PlayerIngester(object):
         self.letter = letter
         self.br_url = 'http://www.basketball-reference.com'
         self.letter_page = requests.get(
-            self.br_url + '/players/' + self.letter).text
+            "{self.br_url}/players/{self.letter}".format(self=self)).text
         self.letter_soup = BeautifulSoup(
             self.letter_page,
             parse_only=SoupStrainer('div', {'id': 'div_players'}))
