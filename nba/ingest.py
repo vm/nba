@@ -18,6 +18,7 @@ class GamelogIngester(object):
     """
     Adds all the gamelogs on a particular page to the database.
     """
+
     def __init__(self, collection, url=None, player_combo=None):
         """
         :param collection: Name of a collection in the nba database.
@@ -26,12 +27,14 @@ class GamelogIngester(object):
         :param player_combo: (optional) Basketball-Reference codes for two
             players used to add to headtoheads collection.
         """
+
         # General
         self.collection = collection
 
         # Based on collection
         if self.collection == 'gamelogs':
             self.url = url
+            self.offset = 1
             # Name of the regular season table on the page.
             self.regular_id = 'pgl_basic'
             # Name of the playoff table on the page.
@@ -41,6 +44,7 @@ class GamelogIngester(object):
             # Base url for head2headfinder on basketball reference.
             self.url = ('http://www.basketball-reference.com/play-index/'
                         'h2h_finder.cgi')
+            self.offset = 0
             self.player_code, self.player_code_2 = player_combo
             # Params for the payload on a url request.
             self.payload = {
@@ -75,6 +79,7 @@ class GamelogIngester(object):
         :param table:
         :returns: Header from table, None if AttributeError.
         """
+
         def replacer(title):
             """
             Creates a title by replacing parts of the given string to remove
@@ -83,6 +88,7 @@ class GamelogIngester(object):
             :param title: Initial title string.
             :returns: Replaced title.
             """
+
             switches = [('%', 'P'), ('3', 'T'), ('+/-', 'PlusMinus')]
             for (initial, final) in switches:
                 title = title.replace(initial, final)
@@ -101,6 +107,7 @@ class GamelogIngester(object):
         """
         Adds all gamelogs from a basketball-reference url to the database.
         """
+
         # If no header, that means no matchups between a player combo exist.
         if self.header_add:
             self.table_to_db('regular', self.regular_table)
@@ -112,6 +119,7 @@ class GamelogIngester(object):
 
         :returns: Header list.
         """
+
         header = self.initialize_header()
         header[9] = 'Home'  # Replaces empty column.
         header.insert(11, 'WinLoss')  # Inserts missing column.
@@ -130,6 +138,7 @@ class GamelogIngester(object):
         :param season: Season of the gamelog. Either 'regular' or 'playoff'.
         :param table: Table of gamelog stats for one year.
         """
+
         if not table:
             return
 
@@ -155,7 +164,7 @@ class GamelogIngester(object):
         # Inserts the found gamelogs into the database at once.
         self.gamelogs_insert(gamelogs)
 
-    def stat_values_parser(self, cols, season, offset=0):
+    def stat_values_parser(self, cols, season):
         """
         Loops through of a list of columns and returns a list of values which
         change or skip the col strings based on their content.
@@ -164,6 +173,7 @@ class GamelogIngester(object):
         :param season: Season of the gamelog. Either 'regular' or 'playoff'.
         :returns: Parsed stat values.
         """
+
         stat_values = self.initialize_stat_values(season)
         for i, col in enumerate(cols):
             text = str(col.getText())
@@ -171,18 +181,18 @@ class GamelogIngester(object):
             if i == 2:
                 stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
             # Home
-            elif i == 4 + offset:
+            elif i == 4 + self.offset:
                 stat_values.append(text != '@')
             # WinLoss
-            elif i == 7 and not offset:
+            elif i == 7 and not self.offset:
                 plusminus = re.compile('.*?\((.*?)\)')
                 stat_values.append(float(plusminus.match(text).group(1)))
             # Percentages
             # Skip them because they can be calculated manually.
-            elif i in {i + offset for i in (12, 15, 18)}:
+            elif i in {n + self.offset for n in (12, 15, 18)}:
                 pass
             # PlusMinus
-            elif i == 29 and not offset:
+            elif i == 29 and not self.offset:
                 stat_values.append(0 if text == '' else float(text))
             # Number
             elif is_number(text):
@@ -194,11 +204,16 @@ class GamelogIngester(object):
 
 
 class BasicGamelogIngester(GamelogIngester):
+    """
+    Adds all single-player gamelogs for single page to the database.
+    """
+
     def __init__(self, url):
         """
         :param url: Basketball-Reference url for a single year of gamelogs for
             a player to add to gamelogs collection.
         """
+
         super(BasicGamelogIngester, self).__init__('gamelogs', url=url)
 
     def initialize_header(self):
@@ -207,6 +222,7 @@ class BasicGamelogIngester(GamelogIngester):
 
         :returns: Initialized header.
         """
+
         return ['Player', 'PlayerCode', 'Year', 'Season'] + self.header_add
 
     def initialize_stat_values(self, season):
@@ -226,33 +242,28 @@ class BasicGamelogIngester(GamelogIngester):
             season
         ]
 
-    @staticmethod
-    def gamelogs_insert(gamelogs):
+    def gamelogs_insert(self, gamelogs):
         """
         Adds gamelogs to the database.
 
         :param gamelogs:
         """
+
         db.gamelogs.insert(gamelogs)
+        print self.url
 
-    def stat_values_parser(self, cols, season):
-        """
-        Loops through of a list of columns and returns a list of values which
-        change or skip the col strings based on their content.
-
-        :param cols: List of column values in a single gamelog.
-        :param season: Season of the gamelog. Either 'regular' or 'playoff'.
-        :returns: Parsed stat values.
-        """
-        return super(BasicGameLogIngester, self).stat_values_parser(cols, 
-                season, offset=1)
 
 class HeadtoheadGamelogIngester(GamelogIngester):
+    """
+    Adds all headtohead gamelogs for a single page to the database.
+    """
+
     def __init__(self, player_combo):
         """
         :param player_combo: Basketball-Reference codes for two players used to
             add to headtoheads collection.
         """
+
         super(HeadtoheadGamelogIngester, self).__init__(
             'headtoheads', player_combo=player_combo)
 
@@ -262,6 +273,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
 
         :returns: Initialized header.
         """
+
         return (['MainPlayer', 'MainPlayerCode', 'OppPlayer', 'OppPlayerCode',
                  'Season'] + self.header_add)
 
@@ -272,6 +284,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
         :param season: Season of the gamelog. Either 'regular' or 'playoff'.
         :returns: Initialized stat values.
         """
+
         # MainPlayerCode, MainPlayer, OppPlayerCode, OppPlayerCode, Season
         return [
             find_player_name(self.player_code).replace(' ', ''),
@@ -287,21 +300,11 @@ class HeadtoheadGamelogIngester(GamelogIngester):
 
         :param gamelogs:
         """
+
         gamelogs = [self.update_gamelog_keys(gamelog) for gamelog in gamelogs]
         db.headtoheads.insert(gamelogs)
+        print self.player_code, self.player_code_2
 
-    def stat_values_parser(self, cols, season):
-        """
-        Loops through of a list of columns and returns a list of values which
-        change or skip the col strings based on their content.
-
-        :param stat_values: Initial values list.
-        :param cols: List of column values in a single gamelog.
-        :param season: Season of the gamelog. Either 'regular' or 'playoff'.
-        :returns: Parsed stat values.
-        """
-        return super(HeadtoheadGamelogIngester, self).stat_values_parser(cols, 
-                season, offset=1)
     def update_gamelog_keys(self, gamelog):
         """
         Removes Player key and switches MainPlayerCode and OppPlayerCode keys
@@ -310,6 +313,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
         :param gamelog:
         :returns: Updated gamelog.
         """
+
         gamelog.pop('Player', None)
         if self.player_code != gamelog['MainPlayerCode']:
             def changer(title):
@@ -323,6 +327,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
                     return title.replace('Main', 'Opp')
                 else:
                     return title.replace('Opp', 'Main')
+
             gamelog = {changer(key): val for key, val in gamelog.items()}
         return gamelog
 
@@ -331,6 +336,7 @@ class PlayerIngester(object):
     """
     Adds all players from a letter to the database.
     """
+
     def __init__(self, letter):
         self.letter = letter
         self.br_url = 'http://www.basketball-reference.com'
@@ -347,6 +353,7 @@ class PlayerIngester(object):
         :param player_url:
         :returns: All the links to seasons for a player.
         """
+
         player_page = requests.get(player_url).text
         player_soup = BeautifulSoup(
             player_page,
@@ -368,6 +375,7 @@ class PlayerIngester(object):
         """
         :param name:
         """
+
         name_data = next(name.children)
         player_url = self.br_url + name_data.attrs['href']
         return {
@@ -381,6 +389,7 @@ class PlayerIngester(object):
         Finds the home urls for all players whose last names start with a
         particular letter.
         """
+
         # Current players are noted with bold text.
         current_names = self.letter_soup.findAll('strong')
 
@@ -391,6 +400,7 @@ class PlayerIngester(object):
         # Only inserts if there are any players for the letter.
         if players:
             db.players.insert(players)
+            print self.letter
 
 
 # Multiprocessing forces these functions to be top level and non-lambdas.
@@ -415,6 +425,7 @@ class CollectionCreator(object):
         :param collection: Name of a collection in the nba database.
         :param update: (optional) Whether to only update gamelogs collection.
         """
+
         self.collection = collection
         self.update = update
         self.p = Pool(6)
@@ -426,6 +437,7 @@ class CollectionCreator(object):
 
         :returns: A list of potential options.
         """
+
         players = db.players.find()
         if self.collection == 'gamelogs':
             self_update = self.update
@@ -438,7 +450,7 @@ class CollectionCreator(object):
         if self.collection == 'headtoheads':
             player_names = [
                 find_player_code(player['Player'])
-                for p in players
+                for player in players
             ]
             return list(combinations(player_names, 2))
         if self.collection == 'players':
@@ -450,12 +462,14 @@ class CollectionCreator(object):
 
         :param f: The function to map.
         """
+
         self.p.map(f, self.options)
 
     def create(self):
         """
         Creates a complete collection in the database.
         """
+
         if self.collection == 'gamelogs':
             # Deletes all gamelogs from current season if update.
             if self.update:

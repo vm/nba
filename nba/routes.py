@@ -18,6 +18,7 @@ def player():
     """
     The start of an API route, returns a player's data using ?name='x'.
     """
+
     name = request.args.get('name')
     player_dict = query.query_specific_player(name)
     player_dict.pop("_id", None)
