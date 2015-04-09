@@ -47,11 +47,9 @@ class GamelogIngester(object):
             self.offset = 0
             self.player_code, self.player_code_2 = player_combo
             # Params for the payload on a url request.
-            self.payload = {
-                'p1': self.player_code,
-                'p2': self.player_code_2,
-                'request': 1
-            }
+            self.payload = {'p1': self.player_code,
+                            'p2': self.player_code_2,
+                            'request': 1}
             # Name of the regular season table on the page.
             self.regular_id = 'stats_games'
             # Name of the playoff table on the page.
@@ -105,10 +103,8 @@ class GamelogIngester(object):
             return title
 
         try:
-            header = [
-                replacer(str(th.getText()))  # Gets header text.
-                for th in table.findAll('th')  # Finds all header titles.
-            ]
+            header = [replacer(str(th.getText()))  # Gets header text.
+                      for th in table.findAll('th')]  # Finds header titles.
             return list(OrderedDict.fromkeys(header))  # Removes duplicates.
         except AttributeError:
             return None
@@ -125,11 +121,9 @@ class GamelogIngester(object):
         header.insert(11, 'WinLoss')  # Inserts missing column.
 
         # Remove all percentages
-        return [
-            title
-            for title in header
-            if title not in {'FGP', 'FTP', 'TPP'}
-        ]
+        return [title
+                for title in header
+                if title not in {'FGP', 'FTP', 'TPP'}]
 
     def table_to_db(self, season, table):
         """
@@ -235,12 +229,10 @@ class BasicGamelogIngester(GamelogIngester):
 
         path_components = urlparse(self.url).path.split('/')
         # Player, PlayerCode, Year, Season.
-        return [
-            find_player_name(path_components[3]).replace(' ', ''),
-            path_components[3],
-            path_components[5],
-            season
-        ]
+        return [find_player_name(path_components[3]).replace(' ', ''),
+                path_components[3],
+                path_components[5],
+                season]
 
     def gamelogs_insert(self, gamelogs):
         """
@@ -286,13 +278,11 @@ class HeadtoheadGamelogIngester(GamelogIngester):
         """
 
         # MainPlayerCode, MainPlayer, OppPlayerCode, OppPlayerCode, Season
-        return [
-            find_player_name(self.player_code).replace(' ', ''),
-            self.player_code,
-            find_player_name(self.player_code_2).replace(' ', ''),
-            self.player_code_2,
-            season
-        ]
+        return [find_player_name(self.player_code).replace(' ', ''),
+                self.player_code,
+                find_player_name(self.player_code_2).replace(' ', ''),
+                self.player_code_2,
+                season]
 
     def gamelogs_insert(self, gamelogs):
         """
@@ -370,11 +360,9 @@ class PlayerIngester(object):
         all_tables = totals_table.findAll('tr', {'class': 'full_table'})
 
         # Finds all links in all the season tables.
-        return [
-            self.br_url + link.get('href')
-            for table in all_tables
-            for link in table.find('td').findAll('a')
-        ]
+        return [self.br_url + link.get('href')
+                for table in all_tables
+                for link in table.find('td').findAll('a')]
 
     def create_player_dict(self, name):
         """
@@ -446,17 +434,13 @@ class CollectionCreator(object):
         players = db.players.find()
         if self.collection == 'gamelogs':
             self_update = self.update
-            return [
-                url
-                for player in players
-                for url in player['GamelogURLs']
-                if not self_update or '2015' in url
-            ]
+            return [url
+                    for player in players
+                    for url in player['GamelogURLs']
+                    if not self_update or '2015' in url]
         if self.collection == 'headtoheads':
-            player_names = [
-                find_player_code(player['Player'])
-                for player in players
-            ]
+            player_names = [find_player_code(player['Player'])
+                            for player in players]
             return list(combinations(player_names, 2))
         if self.collection == 'players':
             return 'abcdefghijklmnopqrstuvwxyz'
