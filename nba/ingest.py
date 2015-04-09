@@ -71,6 +71,16 @@ class GamelogIngester(object):
             # Creates the complete header by adding missing and fixing titles.
             self.header = self.create_header()
 
+    def find_gamelogs(self):
+        """
+        Adds all gamelogs from a basketball-reference url to the database.
+        """
+
+        # If no header, that means no matchups between a player combo exist.
+        if self.header_add:
+            self.table_to_db('regular', self.regular_table)
+            self.table_to_db('playoff', self.playoff_table)
+
     @staticmethod
     def get_header(table):
         """
@@ -103,16 +113,6 @@ class GamelogIngester(object):
         except AttributeError:
             return None
 
-    def find_gamelogs(self):
-        """
-        Adds all gamelogs from a basketball-reference url to the database.
-        """
-
-        # If no header, that means no matchups between a player combo exist.
-        if self.header_add:
-            self.table_to_db('regular', self.regular_table)
-            self.table_to_db('playoff', self.playoff_table)
-
     def create_header(self):
         """
         Creates the initial header.
@@ -120,7 +120,7 @@ class GamelogIngester(object):
         :returns: Header list.
         """
 
-        header = self.initialize_header()
+        header = self.initialize_header() + self.header_add
         header[9] = 'Home'  # Replaces empty column.
         header.insert(11, 'WinLoss')  # Inserts missing column.
 
@@ -223,7 +223,7 @@ class BasicGamelogIngester(GamelogIngester):
         :returns: Initialized header.
         """
 
-        return ['Player', 'PlayerCode', 'Year', 'Season'] + self.header_add
+        return ['Player', 'PlayerCode', 'Year', 'Season']
 
     def initialize_stat_values(self, season):
         """
@@ -274,8 +274,8 @@ class HeadtoheadGamelogIngester(GamelogIngester):
         :returns: Initialized header.
         """
 
-        return (['MainPlayer', 'MainPlayerCode', 'OppPlayer', 'OppPlayerCode',
-                 'Season'] + self.header_add)
+        return ['MainPlayer', 'MainPlayerCode', 'OppPlayer', 'OppPlayerCode',
+                'Season']
 
     def initialize_stat_values(self, season):
         """
@@ -318,7 +318,8 @@ class HeadtoheadGamelogIngester(GamelogIngester):
         if self.player_code != gamelog['MainPlayerCode']:
             def changer(title):
                 """
-                Switches items containing Main with Opp in the header.
+                Switches items containing Main with Opp in the header and vice
+                versa.
 
                 :param title: Name to potentially replace.
                 :returns: Replaced title.
@@ -338,6 +339,10 @@ class PlayerIngester(object):
     """
 
     def __init__(self, letter):
+        """
+        :param letter: The letter for which players should be found.
+        """
+
         self.letter = letter
         self.br_url = 'http://www.basketball-reference.com'
         self.letter_page = requests.get(
