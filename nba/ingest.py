@@ -1,18 +1,17 @@
-import os
 import re
-import sys
 from collections import OrderedDict
 from datetime import datetime
-from itertools import combinations, izip
+from itertools import combinations, islice, izip
 from multiprocessing import Pool
 from urlparse import urlparse
 
 import requests
-from bs4 import BeautifulSoup, SoupStrainer
+from pyquery import PyQuery as pq
 
 from app import db
 from utils import is_number, find_player_name, find_player_code
 
+PLUSMINUS_REGEX = re.compile('.*?\((.*?)\)')
 
 class GamelogIngester(object):
     """
@@ -36,9 +35,9 @@ class GamelogIngester(object):
             self.url = url
             self.offset = 1
             # Name of the regular season table on the page.
-            self.regular_id = 'pgl_basic'
+            self.regular_id = '#pgl_basic'
             # Name of the playoff table on the page.
-            self.playoff_id = 'pgl_basic_playoffs'
+            self.playoff_id = '#pgl_basic_playoffs'
             self.page = requests.get(self.url).text
         if self.collection == 'headtoheads':
             # Base url for head2headfinder on basketball reference.
@@ -51,16 +50,21 @@ class GamelogIngester(object):
                             'p2': self.player_code_2,
                             'request': 1}
             # Name of the regular season table on the page.
-            self.regular_id = 'stats_games'
+            self.regular_id = '#stats_games'
             # Name of the playoff table on the page.
-            self.playoff_id = 'stats_games_playoffs'
+            self.playoff_id = '#stats_games_playoffs'
             self.page = requests.get(self.url, params=self.payload).text
 
         # Scraping
-        self.soup = BeautifulSoup(
-            self.page, parse_only=SoupStrainer('div', {'id': 'page_content'}))
-        self.regular_table = self.soup.find('table', {'id': self.regular_id})
-        self.playoff_table = self.soup.find('table', {'id': self.playoff_id})
+        self.d = pq(self.page)
+        self.regular_table = self.d(self.regular_id)
+        self.playoff_table = self.d(self.playoff_id)
+
+        # Check if tables exist.
+        if self.regular_table.length == 0:
+            self.regular_table = None
+        if self.playoff_table.length == 0:
+            self.playoff_table = None
 
         # Header
         # Gets the initial header from the basketball reference table.
@@ -103,9 +107,10 @@ class GamelogIngester(object):
             return title
 
         try:
-            header = [replacer(str(th.getText()))  # Gets header text.
-                      for th in table.findAll('th')]  # Finds header titles.
-            return list(OrderedDict.fromkeys(header))  # Removes duplicates.
+            header = (replacer(th.text())  # Gets header text.
+                      for th in table('th').items())  # Finds header titles.
+            header = list(OrderedDict.fromkeys(header))  # Removes duplicates.
+            return header
         except AttributeError:
             return None
 
@@ -116,7 +121,7 @@ class GamelogIngester(object):
         :returns: Header list.
         """
 
-        header = self.initialize_header() + self.header_add
+        header = self.header_add + self.initialize_header()
         header[9] = 'Home'  # Replaces empty column.
         header.insert(11, 'WinLoss')  # Inserts missing column.
 
@@ -136,13 +141,14 @@ class GamelogIngester(object):
         if not table:
             return
 
-        rows = table.findAll('tr')
-        del rows[0]  # Delete header row.
+        rows = table('tr').items()
 
         # Each row is one gamelog.
         gamelogs = []
-        for row in rows:
-            cols = row.findAll('td')
+
+        # All rows except header.
+        for row in islice(rows, 1, None):
+            cols = row('td').items()
             # Skip this iteration is there are no cols.
             if not cols:
                 continue
@@ -170,7 +176,7 @@ class GamelogIngester(object):
 
         stat_values = self.initialize_stat_values(season)
         for i, col in enumerate(cols):
-            text = str(col.getText())
+            text = col.text()
             # Date
             if i == 2:
                 stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
@@ -179,12 +185,11 @@ class GamelogIngester(object):
                 stat_values.append(text != '@')
             # WinLoss
             elif i == 7 and not self.offset:
-                plusminus = re.compile('.*?\((.*?)\)')
-                stat_values.append(float(plusminus.match(text).group(1)))
+                stat_values.append(float(PLUSMINUX_REGEX.match(text).group(1)))
             # Percentages
             # Skip them because they can be calculated manually.
-            elif i in {n + self.offset for n in (12, 15, 18)}:
-                pass
+            elif i in (n + self.offset for n in (12, 15, 18)):
+                continue
             # PlusMinus
             elif i == 29 and not self.offset:
                 stat_values.append(0 if text == '' else float(text))
@@ -314,7 +319,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
                 :param title: Name to potentially replace.
                 :returns: Replaced title.
                 """
-                if 'Main' in name:
+                if 'Main' in title:
                     return title.replace('Main', 'Opp')
                 else:
                     return title.replace('Opp', 'Main')
@@ -337,9 +342,7 @@ class PlayerIngester(object):
         self.br_url = 'http://www.basketball-reference.com'
         self.letter_page = requests.get(
             "{self.br_url}/players/{self.letter}".format(self=self)).text
-        self.letter_soup = BeautifulSoup(
-            self.letter_page,
-            parse_only=SoupStrainer('div', {'id': 'div_players'}))
+        self.letter_d = pq(self.letter_page)
 
     def get_gamelog_urls(self, player_url):
         """
@@ -350,32 +353,27 @@ class PlayerIngester(object):
         """
 
         player_page = requests.get(player_url).text
-        player_soup = BeautifulSoup(
-            player_page,
-            parse_only=SoupStrainer('div', {'id': 'all_totals'}))
+        player_d = pq(player_page)
 
         # Table containing player totals.
-        totals_table = player_soup.find('table', {'id': 'totals'})
+        totals_table = player_d('#totals')
         # All single season tables.
-        all_tables = totals_table.findAll('tr', {'class': 'full_table'})
+        all_tables = totals_table('#full_table').items()
 
         # Finds all links in all the season tables.
         return [self.br_url + link.get('href')
                 for table in all_tables
-                for link in table.find('td').findAll('a')]
+                for link in table('td')('a').items()]
 
     def create_player_dict(self, name):
         """
         :param name:
         """
 
-        name_data = next(name.children)
-        player_url = self.br_url + name_data.attrs['href']
-        return {
-            'Player': name_data.contents[0].replace(' ', ''),
-            'GamelogURLs': self.get_gamelog_urls(player_url),
-            'URL': player_url
-        }
+        player_url = self.br_url + name('a').attr('href')
+        return {'Player': name.text().replace(' ', ''),
+                'GamelogURLs': self.get_gamelog_urls(player_url),
+                'URL': player_url}
 
     def find_players(self):
         """
@@ -384,11 +382,12 @@ class PlayerIngester(object):
         """
 
         # Current players are noted with bold text.
-        current_names = self.letter_soup.findAll('strong')
+        current_names = self.letter_d('strong').items()
 
         # Adds a dict with keys Player, GamelogURLs and URL to players for
         # each current_player.
-        players = [self.create_player_dict(name) for name in current_names]
+        players = [self.create_player_dict(name)
+                   for name in current_names]
 
         # Only inserts if there are any players for the letter.
         if players:
@@ -421,7 +420,7 @@ class CollectionCreator(object):
 
         self.collection = collection
         self.update = update
-        self.p = Pool(6)
+        self.p = Pool(20)
         self.options = self.find_options()
 
     def find_options(self):
@@ -431,19 +430,20 @@ class CollectionCreator(object):
         :returns: A list of potential options.
         """
 
+        if self.collection == 'players':
+            return 'abcdefghijklmnopqrstuvwxyz'
+
         players = db.players.find()
         if self.collection == 'gamelogs':
             self_update = self.update
-            return [url
+            return (url
                     for player in players
                     for url in player['GamelogURLs']
-                    if not self_update or '2015' in url]
+                    if not self_update or '2015' in url)
         if self.collection == 'headtoheads':
-            player_names = [find_player_code(player['Player'])
-                            for player in players]
+            player_names = (find_player_code(player['Player'])
+                            for player in players)
             return list(combinations(player_names, 2))
-        if self.collection == 'players':
-            return 'abcdefghijklmnopqrstuvwxyz'
 
     def mapper(self, f):
         """

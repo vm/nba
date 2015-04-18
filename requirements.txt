@@ -7,7 +7,6 @@ Werkzeug==0.9.6
 aniso8601==0.92
 arrow==0.4.4
 beautifulsoup4==4.3.2
-bson==0.3.3
 ecdsa==0.11
 gunicorn==19.1.1
 itsdangerous==0.24
