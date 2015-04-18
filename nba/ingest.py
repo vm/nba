@@ -1,4 +1,7 @@
+from __future__ import division
+
 import re
+import sys
 from collections import OrderedDict
 from datetime import datetime
 from itertools import combinations, islice, izip
@@ -68,7 +71,8 @@ class GamelogIngester(object):
 
         # Header
         # Gets the initial header from the basketball reference table.
-        self.header_add = self.get_header(self.regular_table)
+        self.header_add = self.get_header(
+            self.regular_table if self.regular_table else self.playoff_table)
         if self.header_add:
             # Creates the complete header by adding missing and fixing titles.
             self.header = self.create_header()
@@ -107,10 +111,9 @@ class GamelogIngester(object):
             return title
 
         try:
-            header = (replacer(th.text())  # Gets header text.
+            header = (replacer(str(th.text()))  # Gets header text.
                       for th in table('th').items())  # Finds header titles.
-            header = list(OrderedDict.fromkeys(header))  # Removes duplicates.
-            return header
+            return list(OrderedDict.fromkeys(header))  # Removes duplicates.
         except AttributeError:
             return None
 
@@ -121,7 +124,7 @@ class GamelogIngester(object):
         :returns: Header list.
         """
 
-        header = self.header_add + self.initialize_header()
+        header = self.initialize_header() + self.header_add
         header[9] = 'Home'  # Replaces empty column.
         header.insert(11, 'WinLoss')  # Inserts missing column.
 
@@ -176,7 +179,7 @@ class GamelogIngester(object):
 
         stat_values = self.initialize_stat_values(season)
         for i, col in enumerate(cols):
-            text = col.text()
+            text = str(col.text())
             # Date
             if i == 2:
                 stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
@@ -184,14 +187,14 @@ class GamelogIngester(object):
             elif i == 4 + self.offset:
                 stat_values.append(text != '@')
             # WinLoss
-            elif i == 7 and not self.offset:
-                stat_values.append(float(PLUSMINUX_REGEX.match(text).group(1)))
+            elif i == 7 and self.offset:
+                stat_values.append(float(PLUSMINUS_REGEX.match(text).group(1)))
             # Percentages
             # Skip them because they can be calculated manually.
-            elif i in (n + self.offset for n in (12, 15, 18)):
-                continue
+            elif i in (n + self.offset for n in (11, 14, 17)):
+                pass
             # PlusMinus
-            elif i == 29 and not self.offset:
+            elif i == 29 and self.offset:
                 stat_values.append(0 if text == '' else float(text))
             # Number
             elif is_number(text):
@@ -239,7 +242,7 @@ class BasicGamelogIngester(GamelogIngester):
                 path_components[5],
                 season]
 
-    def gamelogs_insert(self, gamelogs):
+    def gamelogs_insert(gamelogs):
         """
         Adds gamelogs to the database.
 
@@ -289,7 +292,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
                 self.player_code_2,
                 season]
 
-    def gamelogs_insert(self, gamelogs):
+    def gamelogs_insert(gamelogs):
         """
         Adds gamelogs to the database.
 
@@ -358,10 +361,10 @@ class PlayerIngester(object):
         # Table containing player totals.
         totals_table = player_d('#totals')
         # All single season tables.
-        all_tables = totals_table('#full_table').items()
+        all_tables = totals_table('.full_table').items()
 
         # Finds all links in all the season tables.
-        return [self.br_url + link.get('href')
+        return [self.br_url + link.attr('href')
                 for table in all_tables
                 for link in table('td')('a').items()]
 
@@ -371,7 +374,7 @@ class PlayerIngester(object):
         """
 
         player_url = self.br_url + name('a').attr('href')
-        return {'Player': name.text().replace(' ', ''),
+        return {'Player': str(name.text()).replace(' ', ''),
                 'GamelogURLs': self.get_gamelog_urls(player_url),
                 'URL': player_url}
 
@@ -453,6 +456,9 @@ class CollectionCreator(object):
         """
 
         self.p.map(f, self.options)
+
+        #for i, _ in enumerate(self.p.imap_unordered(f, self.options), 1):
+        #    sys.stderr.write('\r{0:.{1}%}'.format(i/len(self.options), 2))
 
     def create(self):
         """
