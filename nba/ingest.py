@@ -15,6 +15,7 @@ from app import db
 from utils import is_number, find_player_name, find_player_code
 
 PLUSMINUS_REGEX = re.compile('.*?\((.*?)\)')
+DATE_REGEX = re.compile('\d{4}-\d{2}')
 
 class GamelogIngester(object):
     """
@@ -105,7 +106,7 @@ class GamelogIngester(object):
             :returns: Replaced title.
             """
 
-            switches = [('%', 'P'), ('3', 'T'), ('+/-', 'PlusMinus')]
+            switches = {('%', 'P'), ('3', 'T'), ('+/-', 'PlusMinus')}
             for (initial, final) in switches:
                 title = title.replace(initial, final)
             return title
@@ -152,6 +153,7 @@ class GamelogIngester(object):
         # All rows except header.
         for row in islice(rows, 1, None):
             cols = row('td').items()
+
             # Skip this iteration is there are no cols.
             if not cols:
                 continue
@@ -218,6 +220,7 @@ class BasicGamelogIngester(GamelogIngester):
 
         super(BasicGamelogIngester, self).__init__('gamelogs', url=url)
 
+
     def initialize_header(self):
         """
         Initializes the header with manually added values and calls header_add.
@@ -242,7 +245,7 @@ class BasicGamelogIngester(GamelogIngester):
                 path_components[5],
                 season]
 
-    def gamelogs_insert(gamelogs):
+    def gamelogs_insert(self, gamelogs):
         """
         Adds gamelogs to the database.
 
@@ -366,7 +369,8 @@ class PlayerIngester(object):
         # Finds all links in all the season tables.
         return [self.br_url + link.attr('href')
                 for table in all_tables
-                for link in table('td')('a').items()]
+                for link in table('td')('a').items()
+                if DATE_REGEX.match(link.text())]
 
     def create_player_dict(self, name):
         """
@@ -457,9 +461,6 @@ class CollectionCreator(object):
 
         self.p.map(f, self.options)
 
-        #for i, _ in enumerate(self.p.imap_unordered(f, self.options), 1):
-        #    sys.stderr.write('\r{0:.{1}%}'.format(i/len(self.options), 2))
-
     def create(self):
         """
         Creates a complete collection in the database.
@@ -475,4 +476,3 @@ class CollectionCreator(object):
         if self.collection == 'players':
             f = players_from_letter
         self.mapper(f)
-
