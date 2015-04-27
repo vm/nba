@@ -1,5 +1,3 @@
-from __future__ import division
-
 import re
 import sys
 from collections import OrderedDict
@@ -14,6 +12,7 @@ from pyquery import PyQuery as pq
 from app import db
 from utils import is_number, find_player_name, find_player_code
 
+# Regexes to find data in table cell text.
 PLUSMINUS_REGEX = re.compile('.*?\((.*?)\)')
 DATE_REGEX = re.compile('\d{4}-\d{2}')
 
@@ -154,8 +153,7 @@ class GamelogIngester(object):
         for row in islice(rows, 1, None):
             cols = row('td').items()
 
-            # Skip this iteration is there are no cols.
-            if not cols:
+            if cols.length == 0:
                 continue
 
             # Each column is one stat type.
@@ -179,32 +177,32 @@ class GamelogIngester(object):
         :returns: Parsed stat values.
         """
 
-        stat_values = self.initialize_stat_values(season)
-        for i, col in enumerate(cols):
+        def convert(i, col):
             text = str(col.text())
             # Date
             if i == 2:
-                stat_values.append(datetime.strptime(text, '%Y-%m-%d'))
+                return datetime.strptime(text, '%Y-%m-%d')
             # Home
-            elif i == 4 + self.offset:
-                stat_values.append(text != '@')
+            if i == 4 + self.offset:
+                return text != '@'
             # WinLoss
-            elif i == 7 and self.offset:
-                stat_values.append(float(PLUSMINUS_REGEX.match(text).group(1)))
+            if i == 7 and self.offset:
+                return float(PLUSMINUS_REGEX.match(text).group(1))
             # Percentages
             # Skip them because they can be calculated manually.
-            elif i in (n + self.offset for n in (11, 14, 17)):
-                pass
+            if i in (n + self.offset for n in {11, 14, 17}):
+                return None
             # PlusMinus
-            elif i == 29 and self.offset:
-                stat_values.append(0 if text == '' else float(text))
+            if i == 29 and self.offset:
+                return 0 if text == '' else float(text)
             # Number
-            elif is_number(text):
-                stat_values.append(float(text))
+            if is_number(text):
+                return float(text)
             # Text
-            else:
-                stat_values.append(text)
-        return stat_values
+            return text
+
+        return (self.initialize_stat_values(season) +
+                [c for c in (convert(i, c) for i, c in enumerate(cols)) if c])
 
 
 class BasicGamelogIngester(GamelogIngester):
@@ -327,8 +325,9 @@ class HeadtoheadGamelogIngester(GamelogIngester):
                 """
                 if 'Main' in title:
                     return title.replace('Main', 'Opp')
-                else:
+                if 'Opp' in title:
                     return title.replace('Opp', 'Main')
+                return title
 
             gamelog = {changer(key): val for key, val in gamelog.items()}
         return gamelog
@@ -450,7 +449,7 @@ class CollectionCreator(object):
         if self.collection == 'headtoheads':
             player_names = (find_player_code(player['Player'])
                             for player in players)
-            return list(combinations(player_names, 2))
+            return combinations(player_names, 2)
 
     def mapper(self, f):
         """
