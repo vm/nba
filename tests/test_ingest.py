@@ -24,11 +24,11 @@ class TestGamelogIngester(object):
         assert self.g.reg_table_id == 'pgl_basic'
         assert self.g.playoff_table_id == 'pgl_basic_playoffs'
         assert self.g.header == [
-            u'Player', u'PlayerCode', u'Year', u'Season', u'Rk', u'G',
-            u'Date', u'Age', u'Tm', u'Home', u'Opp', u'WinLoss', u'GS', u'MP',
-            u'FG', u'FGA', u'TP', u'TPA', u'FT', u'FTA', u'ORB', u'DRB',
-            u'TRB', u'AST', u'STL', u'BLK', u'TOV', u'PF', u'PTS', u'GmSc',
-            u'PlusMinus'
+            'Player', 'PlayerCode', 'Year', 'Season', 'Rk', 'G',
+            'Date', 'Age', 'Tm', 'Home', 'Opp', 'WinLoss', 'GS', 'MP',
+            'FG', 'FGA', 'TP', 'TPA', 'FT', 'FTA', 'ORB', 'DRB',
+            'TRB', 'AST', 'STL', 'BLK', 'TOV', 'PF', 'PTS', 'GmSc',
+            'PlusMinus'
         ]
 
 

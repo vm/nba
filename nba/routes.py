@@ -3,9 +3,9 @@ from bson import json_util
 
 from flask import render_template, request, Response
 
-import query
-from app import app
-from utils import datetime_range
+from . import query
+from .app import app
+from .utils import datetime_range
 
 
 @app.route('/', methods=['GET'])
@@ -51,3 +51,4 @@ def gamelogs():
 
     return Response(json.dumps(gamelogs_list, default=json_util.default),
                     mimetype='application/json')
+

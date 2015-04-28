@@ -1,9 +1,9 @@
 import os
 from datetime import datetime
 from posixpath import basename
-from urlparse import urlparse
+from urllib.parse import urlparse
 
-from app import db
+from .app import db
 
 
 def find_player_code(player):
@@ -13,7 +13,7 @@ def find_player_code(player):
     :returns: Player_code of player if successful.
     :raises: ValueError if invalid player name.
     """
-    
+
     player_dict = db.players.find_one({'Player': player})
     if not player_dict:
         raise ValueError('Enter a valid player name.')
@@ -26,7 +26,7 @@ def find_player_name(player_code):
     """
     Finds a player name given a player code
     """
-    
+
     query = {"URL": {'$regex': '.*' + player_code + '.*'}}
     player_dict = db.players.find_one(query)
     return player_dict['Player']
@@ -39,7 +39,7 @@ def is_number(s):
     :returns: True or False
     :raises: NotImplementedError if not inputted string.
     """
-    
+
     if isinstance(s, str):
         try:
             float(s)
@@ -59,7 +59,7 @@ def datetime_range(start, end=None):
     :param end: (optional) End date in 'YYYY/MM/DD' format.
     :returns: Dictionary with a datetime range.
     """
-    
+
     start_range = datetime.strptime(start, '%Y-%m-%d')
     end_range = datetime.strptime(end, '%Y-%m-%d') if end else datetime.now()
     return {'Date': {'$gte': start_range, '$lt': end_range}}

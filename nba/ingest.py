@@ -2,15 +2,15 @@ import re
 import sys
 from collections import OrderedDict
 from datetime import datetime
-from itertools import combinations, islice, izip
+from itertools import combinations, islice
 from multiprocessing import Pool
-from urlparse import urlparse
+from urllib.parse import urlparse
 
 import requests
 from pyquery import PyQuery as pq
 
-from app import db
-from utils import is_number, find_player_name, find_player_code
+from .app import db
+from .utils import is_number, find_player_name, find_player_code
 
 # Regexes to find data in table cell text.
 PLUSMINUS_REGEX = re.compile('.*?\((.*?)\)')
@@ -106,7 +106,8 @@ class GamelogIngester(object):
             """
 
             switches = {('%', 'P'), ('3', 'T'), ('+/-', 'PlusMinus')}
-            for (initial, final) in switches:
+            for switch in switches:
+                initial, final = switch
                 title = title.replace(initial, final)
             return title
 
@@ -161,7 +162,7 @@ class GamelogIngester(object):
 
             # Zips the each header item and stat value together and adds each
             # into a dictionary, creating a dict of gamelog stats for a game.
-            gamelog = dict(izip(self.header, stat_values))
+            gamelog = dict(zip(self.header, stat_values))
             gamelogs.append(gamelog)
 
         # Inserts the found gamelogs into the database at once.
@@ -202,7 +203,9 @@ class GamelogIngester(object):
             return text
 
         return (self.initialize_stat_values(season) +
-                [c for c in (convert(i, c) for i, c in enumerate(cols)) if c])
+                [col
+                 for col in (convert(i, col) for i, col in enumerate(cols))
+                 if col is not None])
 
 
 class BasicGamelogIngester(GamelogIngester):
@@ -216,8 +219,7 @@ class BasicGamelogIngester(GamelogIngester):
             a player to add to gamelogs collection.
         """
 
-        super(BasicGamelogIngester, self).__init__('gamelogs', url=url)
-
+        super().__init__('gamelogs', url=url)
 
     def initialize_header(self):
         """
@@ -251,7 +253,7 @@ class BasicGamelogIngester(GamelogIngester):
         """
 
         db.gamelogs.insert(gamelogs)
-        print self.url
+        print(self.url)
 
 
 class HeadtoheadGamelogIngester(GamelogIngester):
@@ -265,8 +267,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
             add to headtoheads collection.
         """
 
-        super(HeadtoheadGamelogIngester, self).__init__(
-            'headtoheads', player_combo=player_combo)
+        super().__init__('headtoheads', player_combo=player_combo)
 
     def initialize_header(self):
         """
@@ -302,7 +303,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
 
         gamelogs = [self.update_gamelog_keys(gamelog) for gamelog in gamelogs]
         db.headtoheads.insert(gamelogs)
-        print self.player_code, self.player_code_2
+        print(self.player_code, self.player_code_2)
 
     def update_gamelog_keys(self, gamelog):
         """
@@ -398,7 +399,7 @@ class PlayerIngester(object):
         # Only inserts if there are any players for the letter.
         if players:
             db.players.insert(players)
-            print self.letter
+            print(self.letter)
 
 
 # Multiprocessing forces these functions to be top level and non-lambdas.
@@ -475,3 +476,4 @@ class CollectionCreator(object):
         if self.collection == 'players':
             f = players_from_letter
         self.mapper(f)
+
