@@ -105,8 +105,7 @@ class GamelogIngester(object):
             :returns: Replaced title.
             """
 
-            switches = {('%', 'P'), ('3', 'T'), ('+/-', 'PlusMinus')}
-            for switch in switches:
+            for switch in {('%', 'P'), ('3', 'T'), ('+/-', 'PlusMinus')}:
                 initial, final = switch
                 title = title.replace(initial, final)
             return title
@@ -240,7 +239,7 @@ class BasicGamelogIngester(GamelogIngester):
 
         path_components = urlparse(self.url).path.split('/')
         # Player, PlayerCode, Year, Season.
-        return [find_player_name(path_components[3]).replace(' ', ''),
+        return [find_player_name(path_components[3]),
                 path_components[3],
                 path_components[5],
                 season]
@@ -288,9 +287,9 @@ class HeadtoheadGamelogIngester(GamelogIngester):
         """
 
         # MainPlayerCode, MainPlayer, OppPlayerCode, OppPlayerCode, Season
-        return [find_player_name(self.player_code).replace(' ', ''),
+        return [find_player_name(self.player_code),
                 self.player_code,
-                find_player_name(self.player_code_2).replace(' ', ''),
+                find_player_name(self.player_code_2),
                 self.player_code_2,
                 season]
 
@@ -315,6 +314,7 @@ class HeadtoheadGamelogIngester(GamelogIngester):
         """
 
         gamelog.pop('Player', None)
+
         if self.player_code != gamelog['MainPlayerCode']:
             def changer(title):
                 """
@@ -324,13 +324,12 @@ class HeadtoheadGamelogIngester(GamelogIngester):
                 :param title: Name to potentially replace.
                 :returns: Replaced title.
                 """
-                if 'Main' in title:
-                    return title.replace('Main', 'Opp')
-                if 'Opp' in title:
-                    return title.replace('Opp', 'Main')
-                return title
+
+                s = ('Main', 'Opp')
+                return title.replace(*s if 'Main' in title else *s[::-1])
 
             gamelog = {changer(key): val for key, val in gamelog.items()}
+
         return gamelog
 
 
@@ -378,7 +377,7 @@ class PlayerIngester(object):
         """
 
         player_url = self.br_url + name('a').attr('href')
-        return {'Player': str(name.text()).replace(' ', ''),
+        return {'Player': str(name.text()),
                 'GamelogURLs': self.get_gamelog_urls(player_url),
                 'URL': player_url}
 
