@@ -18,10 +18,9 @@ def query_specific_player(player_name):
 
 def query_games(query, active=False):
     """
-    Finds all games in the database from a given query. If active is True,
-    filters all games in the database where a player was active. A player
-    is considered active if he was not Inactive, Did Not Play
-    (Coach's Decision) or Suspended.
+    Finds all games in the database from a given query. If active is True, filters all games in the
+    database where a player was active. A player is considered active if he was not Inactive, Did
+    Not Play (Coach's Decision) or Suspended.
 
     :param query:
     :param active: Filters active games if True, default False.
@@ -35,10 +34,8 @@ def query_games(query, active=False):
         if active:
             return gamelogs
         else:
-            dnps = {'Inactive', 'Did Not Play', 'Player Suspended'}
             return [gamelog
                     for gamelog in gamelogs
-                    if gamelog['GS'] not in dnps]
+                    if gamelog['GS'] not in {'Inactive', 'Did Not Play', 'Player Suspended'}]
     else:
         raise ValueError('No gamelogs found based on query.')
-

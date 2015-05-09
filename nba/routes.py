@@ -51,4 +51,3 @@ def gamelogs():
 
     return Response(json.dumps(gamelogs_list, default=json_util.default),
                     mimetype='application/json')
-
