@@ -34,4 +34,3 @@ class ProductionConfig(Config):
         'DB': 'heroku_app33131232',
         'host': os.environ.get('MONGOLAB_URI', '')
     }
-

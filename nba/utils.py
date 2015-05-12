@@ -1,7 +1,13 @@
+from __future__ import absolute_import
+
 import os
+import sys
 from datetime import datetime
 from posixpath import basename
-from urllib.parse import urlparse
+if sys.version_info > (3, 0):
+    from urllib.parse import urlparse
+else:
+    from urlparse import urlparse
 
 from .app import db
 
