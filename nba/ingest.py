@@ -2,7 +2,7 @@ import re
 import sys
 from collections import OrderedDict
 from datetime import datetime
-from itertools import combinations, islice, izip
+from itertools import islice, izip
 from urlparse import urlparse
 
 import requests

@@ -1,3 +1,4 @@
+from itertools import combinations
 from multiprocessing import Pool
 
 from PyQuery import pyquery as pq
@@ -21,33 +22,22 @@ def players_from_letter(letter):
 class CollectionCreator(object):
     _pool = Pool(20)
 
-    def __init__(self, collection, update=True):
-        self.collection = collection
-        self.update = update
+    @classmethod
+    def create(cls):
+        cls._pool..map(cls._mapped_function, cls._options)
 
-    def find_options(self):
-        """Finds a options to add to the database based on the collection."""
 
-        if self.collection == 'players':
-            return 'abcdefghijklmnopqrstuvwxyz'
-        players = db.players.find()
-        if self.collection == 'gamelogs':
-            return (url
-                    for player in players
-                    for url in player['GamelogURLs']
-                    if not self.update or '2015' in url)
-        else:
-            return combinations((find_player_code(player['Player']) for player in players), 2)
+class GamelogsCreator(CollectionCreator):
+    _options = (url for player in db.players.find() for url in player['GamelogURLs'])
+    _mapped_function = gamelogs_from_url
 
-    def create(self):
-        """Creates a complete collection in the database."""
-        if self.collection == 'gamelogs':
-            if self.update:
-                db.gamelogs.remove({'Year': 2015})
-            f = gamelogs_from_url
-        elif self.collection == 'headtoheads':
-            f = headtoheads_from_combo
-        else:
-            f = players_from_letter
-        CollectionCreator._pool.map(f, self.find_options())
+
+class HeadtoheadsCreator(CollectionCreator):
+    _options = combinations((find_player_code(player['Player']) for player in players), 2)
+    _mapped_function = headtoheads_from_combo
+
+
+class PlayersCreator(CollectionCreator):
+    _options = 'abcdefghijklmnopqrstuvwxyz'
+    _mapped_function = players_from_letter
 
