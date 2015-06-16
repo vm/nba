@@ -8,8 +8,8 @@ from urlparse import urlparse
 import requests
 from pyquery import PyQuery as pq
 
-from nba.app import db
-from nba.utils import is_number, find_player_name, find_player_code
+from app import db
+from utils import is_number, find_player_name, find_player_code
 
 
 class GamelogIngester(object):
@@ -17,7 +17,7 @@ class GamelogIngester(object):
 
     _date_conversion = lambda text: datetime.strptime(text, '%Y-%m-%d')
     _home_conversion = lambda text != '@'
-    _winloss_conversion = lambda text: float(GamelogIngester._winloss_regex.match(text).group(1))
+    _winloss_conversion = lambda text: float(_winloss_regex.match(text).group(1))
     _percent_conversion = None
     _plusminus_conversion = lambda text: float(text) if text else 0
 
@@ -70,12 +70,17 @@ class GamelogIngester(object):
     @classmethod
     def _stat_values_parser(cls, cols, season):
         """Returns a list of values which change or skip the col strings based on their content."""
-        values = []
         for i, col in enumerate(cols):
             text = col.text()
             conversion = cls._conversions.get(i)
             parsed = conversion(text) if conversion else float(text) if is_number(text) else text
-            values.append(parsed)
+            if conversion:
+                values.append(conversion(text))
+            else:
+                if is_number(text):
+                    values.append(float(text))
+                else:
+                    values.append(text)
         return values
 
 

@@ -3,21 +3,25 @@ from multiprocessing import Pool
 
 from PyQuery import pyquery as pq
 
-from nba.app import db
-from nba.ingest import BasicGamelogIngester, HeadtoheadGamelogIngester
+from app import db
+from ingest import BasicGamelogIngester, HeadtoheadGamelogIngester
+
+
+def _items_from_option(cls, option):
+    cls(option).find()
 
 
 # Multiprocessing forces these functions to be top level.
 def _gamelogs_from_url(url):
-    BasicGamelogIngester(url).find()
+    _items_from_option(BasicGamelogIngester, url)
 
 
 def _headtoheads_from_combo(combo):
-    HeadtoheadGamelogIngester(combo).find()
+    _items_from_option(HeadtoheadGamelogIngester, combo)
 
 
 def _players_from_letter(letter):
-    PlayerIngester(letter).find()
+    _items_from_option(PlayerIngester, letter)
 
 
 class CollectionCreator(object):
