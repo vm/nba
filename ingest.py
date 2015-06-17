@@ -12,7 +12,7 @@ from app import db
 from utils import is_number, find_player_name, find_player_code
 
 
-class GamelogIngester(object):
+class Ingester(object):
     _winloss_regex = re.compile('.*?\((.*?)\)')
 
     _date_conversion = lambda text: datetime.strptime(text, '%Y-%m-%d')
@@ -62,8 +62,7 @@ class GamelogIngester(object):
             cols = row('td').items()
             if not cols.length:
                 continue
-            stat_values = (self._initialize_stat_values(season) +
-                           self._stat_values_parser(cols))
+            stat_values = self._initial_stat_values + [season] + self._stat_values_parser(cols)
             gamelogs.append(dict(izip(header, stat_values)))
         self._gamelogs_insert(gamelogs)
 
@@ -84,46 +83,41 @@ class GamelogIngester(object):
         return values
 
 
-class BasicGamelogIngester(GamelogIngester):
+class GamelogIngester(Ingester):
     _initial_header = ['Player', 'PlayerCode', 'Year', 'Season']
     _conversions = {
-        2: GamelogIngester._date_conversion,
-        4: GamelogIngester._home_conversion,
-        11: GamelogIngester._percentage_conversion,
-        14: GamelogIngester._percentage_conversion,
-        17: GamelogIngester._percentage_conversion,
+        2: Ingester._date_conversion,
+        4: Ingester._home_conversion,
+        11: Ingester._percentage_conversion,
+        14: Ingester._percentage_conversion,
+        17: Ingester._percentage_conversion,
     }
     _payload = None
     _regular_id, _playoff_id = '#pgl_basic', '#pgl_basic_playoffs'
 
     def __init__(self, url):
-        self._url = url
-
-    def initialize_stat_values(self, season):
-        """Initializes the stat values with manually added values."""
-        path_components = urlparse(self._url).path.split('/')
-        # Player, PlayerCode, Year, Season.
-        return [find_player_name(path_components[3]),
-                path_components[3],
-                path_components[5],
-                season]
+        path_components = urlparse(url).path.split('/')
+        # Player, PlayerCode, Year, Season
+        self._initial_stat_values = [find_player_name(path_components[3]),
+                                     path_components[3],
+                                     path_components[5],
 
     @staticmethod
-    def gamelogs_insert(gamelogs):
+    def _gamelogs_insert(gamelogs):
         """Adds gamelogs to the database."""
         db.gamelogs.insert(gamelogs)
 
 
-class HeadtoheadGamelogIngester(GamelogIngester):
+class HeadtoheadIngester(Ingester):
     _initial_header = ['MainPlayer', 'MainPlayerCode', 'OppPlayer', 'OppPlayerCode', 'Season']
     _conversions = {
-        2: GamelogIngester._date_conversion,
-        5: GamelogIngester._home_conversion
-        7: GamelogIngester._winloss_conversion,
-        12: GamelogIngester._percentage_conversion,
-        15: GamelogIngester._percentage_conversion,
-        18: GamelogIngester._percentage_conversion,
-        29: GamelogIngester._plusminus_conversion
+        2: Ingester._date_conversion,
+        5: Ingester._home_conversion
+        7: Ingester._winloss_conversion,
+        12: Ingester._percentage_conversion,
+        15: Ingester._percentage_conversion,
+        18: Ingester._percentage_conversion,
+        29: Ingester._plusminus_conversion
     }
     _url = 'http://www.basketball-reference.com/play-index/h2h_finder.cgi'
     _regular_id, _playoff_id = '#stats_games', '#stats_games_playoffs'
@@ -131,15 +125,11 @@ class HeadtoheadGamelogIngester(GamelogIngester):
     def __init__(self, player_combo):
         self.player_one_code, self.player_two_code = player_combo
         self._payload = {'p1': self.player_one_code, 'p2': self.player_two_code, 'request': 1}
-
-    def _initialize_stat_values(self, season):
-        """Initializes the stat values with manually added values."""
         # MainPlayerCode, MainPlayer, OppPlayerCode, OppPlayerCode, Season
-        return [find_player_name(self.player_one_code),
-                self.player_one_code,
-                find_player_name(self.player_two_code),
-                self.player_two_code,
-                season]
+        self._initial_stat_values = [find_player_name(self.player_one_code),
+                                     self.player_one_code,
+                                     find_player_name(self.player_two_code),
+                                     self.player_two_code]
 
     def _gamelogs_insert(self, gamelogs):
         """Adds gamelogs to the database."""
@@ -172,7 +162,7 @@ class PlayerIngester(object):
 
     @classmethod
     def _get_gamelog_urls(cls, player_url):
-        """ Returns list of gamelog urls with every year for one player."""
+        """Returns list of gamelog urls with every year for one player."""
         player_page = requests.get(player_url).text
         player_d = pq(player_page)
         totals_table = player_d('#totals')
@@ -184,6 +174,7 @@ class PlayerIngester(object):
 
     @classmethod
     def _create_player_dict(cls, name):
+        """Create a dictionary for a player to enter into the database."""
         player_url = cls._br_url + name('a').attr('href')
         return {
             'Player': name.text(),
