@@ -1,22 +1,21 @@
 import re
-import sys
 from collections import OrderedDict
-from datetime import datetime
 from itertools import islice, izip
 from urlparse import urlparse
 
+import arrow
 import requests
 from pyquery import PyQuery as pq
 
 from app import db
-from utils import is_number, find_player_name, find_player_code
+from utils import is_number, find_player_name
 
 
 class Ingester(object):
     _winloss_regex = re.compile('.*?\((.*?)\)')
 
-    _date_conversion = lambda text: datetime.strptime(text, '%Y-%m-%d')
-    _home_conversion = lambda text != '@'
+    _date_conversion = lambda text: arrow.parse(text)
+    _home_conversion = lambda text: text != '@'
     _winloss_conversion = lambda text: float(_winloss_regex.match(text).group(1))
     _percent_conversion = None
     _plusminus_conversion = lambda text: float(text) if text else 0
@@ -34,15 +33,17 @@ class Ingester(object):
         header_add = self._get_header_add(regular_table if regular_table else playoff_table)
         if header_add:
             header = self._create_header(header_add)
-            self._table_to_db('regular', regular_table, header)
-            self._table_to_db('playoff', playoff_table, header)
+            if regular_table:
+                self._table_to_db('regular', regular_table, header)
+            if playoff_table:
+                self._table_to_db('playoff', playoff_table, header)
 
     @staticmethod
     def _get_header_add(table):
         """Finds and returns the header of a table."""
         replacer = lambda t: t.replace('%', 'P').replace('3', 'T').replace('+/-', 'PlusMinus')
         titles = table('th').items()
-        return (replacer(title.text()) for title in table('th').items()) else None
+        return (replacer(title.text()) for title in titles) if titles else None
 
     @classmethod
     def _create_header(cls, header_add):
@@ -54,8 +55,6 @@ class Ingester(object):
 
     def _table_to_db(self, season, table, header):
         """Adds all gamelogs in a table to the database."""
-        if not table:
-            return
         rows = table('tr').items()
         gamelogs = []
         for row in islice(rows, 1, None):
@@ -72,7 +71,6 @@ class Ingester(object):
         for i, col in enumerate(cols):
             text = col.text()
             conversion = cls._conversions.get(i)
-            parsed = conversion(text) if conversion else float(text) if is_number(text) else text
             if conversion:
                 values.append(conversion(text))
             else:
@@ -88,9 +86,9 @@ class GamelogIngester(Ingester):
     _conversions = {
         2: Ingester._date_conversion,
         4: Ingester._home_conversion,
-        11: Ingester._percentage_conversion,
-        14: Ingester._percentage_conversion,
-        17: Ingester._percentage_conversion,
+        11: Ingester._percent_conversion,
+        14: Ingester._percent_conversion,
+        17: Ingester._percent_conversion,
     }
     _payload = None
     _regular_id, _playoff_id = '#pgl_basic', '#pgl_basic_playoffs'
@@ -98,9 +96,8 @@ class GamelogIngester(Ingester):
     def __init__(self, url):
         path_components = urlparse(url).path.split('/')
         # Player, PlayerCode, Year, Season
-        self._initial_stat_values = [find_player_name(path_components[3]),
-                                     path_components[3],
-                                     path_components[5],
+        self._initial_stat_values = [find_player_name(path_components[3]), path_components[3],
+                                     path_components[5]]
 
     @staticmethod
     def _gamelogs_insert(gamelogs):
@@ -112,11 +109,11 @@ class HeadtoheadIngester(Ingester):
     _initial_header = ['MainPlayer', 'MainPlayerCode', 'OppPlayer', 'OppPlayerCode', 'Season']
     _conversions = {
         2: Ingester._date_conversion,
-        5: Ingester._home_conversion
+        5: Ingester._home_conversion,
         7: Ingester._winloss_conversion,
-        12: Ingester._percentage_conversion,
-        15: Ingester._percentage_conversion,
-        18: Ingester._percentage_conversion,
+        12: Ingester._percent_conversion,
+        15: Ingester._percent_conversion,
+        18: Ingester._percent_conversion,
         29: Ingester._plusminus_conversion
     }
     _url = 'http://www.basketball-reference.com/play-index/h2h_finder.cgi'
@@ -126,10 +123,8 @@ class HeadtoheadIngester(Ingester):
         self.player_one_code, self.player_two_code = player_combo
         self._payload = {'p1': self.player_one_code, 'p2': self.player_two_code, 'request': 1}
         # MainPlayerCode, MainPlayer, OppPlayerCode, OppPlayerCode, Season
-        self._initial_stat_values = [find_player_name(self.player_one_code),
-                                     self.player_one_code,
-                                     find_player_name(self.player_two_code),
-                                     self.player_two_code]
+        self._initial_stat_values = [find_player_name(self.player_one_code), self.player_one_code,
+                                     find_player_name(self.player_two_code), self.player_two_code]
 
     def _gamelogs_insert(self, gamelogs):
         """Adds gamelogs to the database."""

@@ -1,27 +1,27 @@
 from itertools import combinations
 from multiprocessing import Pool
 
-from PyQuery import pyquery as pq
+from pyquery import PyQuery as pq
 
 from app import db
-from ingest import BasicGamelogIngester, HeadtoheadGamelogIngester
+from ingest import GamelogIngester, HeadtoheadIngester
+from utils import find_player_code
 
-
-def _items_from_option(cls, option):
+def _get_items(cls, option):
     cls(option).find()
 
 
 # Multiprocessing forces these functions to be top level.
-def _gamelogs_from_url(url):
-    _items_from_option(BasicGamelogIngester, url)
+def _get_gamelogs(url):
+    _get_items(GamelogIngester, url)
 
 
-def _headtoheads_from_combo(combo):
-    _items_from_option(HeadtoheadGamelogIngester, combo)
+def _get_headtoheads(combo):
+    _get_items(HeadtoheadIngester, combo)
 
 
-def _players_from_letter(letter):
-    _items_from_option(PlayerIngester, letter)
+def _get_players(letter):
+    _get_items(PlayerIngester, letter)
 
 
 class CollectionCreator(object):
@@ -38,7 +38,7 @@ class GamelogsCreator(CollectionCreator):
 
 
 class HeadtoheadsCreator(CollectionCreator):
-    _options = combinations((find_player_code(player['Player']) for player in players), 2)
+    _options = combinations((find_player_code(player['Player']) for player in db.players.find()), 2)
     _mapped_function = _headtoheads_from_combo
 
 
