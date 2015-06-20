@@ -9,7 +9,7 @@ from funcy import without
 from pyquery import PyQuery as pq
 
 from app import db
-from utils import Conversions, is_number, find_player_name, multiple_replace
+from utils import ConversionsMixin, is_number, find_player_name, multiple_replace
 
 
 class Ingester(object):

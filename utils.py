@@ -5,19 +5,24 @@ from urlparse import urlparse
 from app import db
 
 
-class Conversions(object):
+class ConversionsMixin(object):
+    @staticmethod
     def date_conversion(text):
         return arrow.get(text).datetime
 
+    @staticmethod
     def home_conversion(text):
         return text != '@'
 
+    @staticmethod
     def winloss_conversion(text):
         return float(_winloss_regex.match(text).group(1))
 
+    @staticmethod
     def percent_conversion(text):
         return None
 
+    @staticmethod
     def plusminus_conversion(text):
         return float(text) if text else 0
 
