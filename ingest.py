@@ -1,6 +1,6 @@
 import re
-from collections import OrderedDict
 from itertools import islice, izip
+from more_itertools import unique_everseen
 from urlparse import urlparse
 
 import arrow
@@ -10,15 +10,15 @@ from pyquery import PyQuery as pq
 from app import db
 from utils import is_number, find_player_name
 
+_date_conversion = lambda text: arrow.get(text).datetime
+_home_conversion = lambda text: text != '@'
+_winloss_conversion = lambda text: float(_winloss_regex.match(text).group(1))
+_percent_conversion = None
+_plusminus_conversion = lambda text: float(text) if text else 0
+
 
 class Ingester(object):
     _winloss_regex = re.compile('.*?\((.*?)\)')
-
-    _date_conversion = lambda text: arrow.parse(text)
-    _home_conversion = lambda text: text != '@'
-    _winloss_conversion = lambda text: float(_winloss_regex.match(text).group(1))
-    _percent_conversion = None
-    _plusminus_conversion = lambda text: float(text) if text else 0
 
     def find(self):
         """Adds all gamelogs from a basketball-reference url to the database."""
@@ -41,9 +41,9 @@ class Ingester(object):
     @staticmethod
     def _get_header_add(table):
         """Finds and returns the header of a table."""
-        replacer = lambda t: t.replace('%', 'P').replace('3', 'T').replace('+/-', 'PlusMinus')
-        titles = table('th').items()
-        return (replacer(title.text()) for title in titles) if titles else None
+        replacer = lambda th: th.replace('%', 'P').replace('3', 'T').replace('+/-', 'PlusMinus')
+        titles = [replacer(str(th.text())) for th in table('th').items()]
+        return list(unique_everseen(titles))
 
     @classmethod
     def _create_header(cls, header_add):
@@ -59,17 +59,18 @@ class Ingester(object):
         gamelogs = []
         for row in islice(rows, 1, None):
             cols = row('td').items()
-            if not cols.length:
-                continue
-            stat_values = self._initial_stat_values + [season] + self._stat_values_parser(cols)
-            gamelogs.append(dict(izip(header, stat_values)))
+            stat_values = (
+                self._initial_stat_values + [season] + self._stat_values_parser(cols, season))
+            if len(stat_values) > len(self._initial_stat_values) + 1:
+                gamelogs.append(dict(izip(header, stat_values)))
         self._gamelogs_insert(gamelogs)
 
     @classmethod
     def _stat_values_parser(cls, cols, season):
         """Returns a list of values which change or skip the col strings based on their content."""
+        values = []
         for i, col in enumerate(cols):
-            text = col.text()
+            text = str(col.text())
             conversion = cls._conversions.get(i)
             if conversion:
                 values.append(conversion(text))
@@ -84,17 +85,18 @@ class Ingester(object):
 class GamelogIngester(Ingester):
     _initial_header = ['Player', 'PlayerCode', 'Year', 'Season']
     _conversions = {
-        2: Ingester._date_conversion,
-        4: Ingester._home_conversion,
-        11: Ingester._percent_conversion,
-        14: Ingester._percent_conversion,
-        17: Ingester._percent_conversion,
+        2: _date_conversion,
+        4: _home_conversion,
+        11: _percent_conversion,
+        14: _percent_conversion,
+        17: _percent_conversion,
     }
     _payload = None
     _regular_id, _playoff_id = '#pgl_basic', '#pgl_basic_playoffs'
 
     def __init__(self, url):
-        path_components = urlparse(url).path.split('/')
+        self._url = url
+        path_components = urlparse(self._url).path.split('/')
         # Player, PlayerCode, Year, Season
         self._initial_stat_values = [find_player_name(path_components[3]), path_components[3],
                                      path_components[5]]
@@ -108,18 +110,18 @@ class GamelogIngester(Ingester):
 class HeadtoheadIngester(Ingester):
     _initial_header = ['MainPlayer', 'MainPlayerCode', 'OppPlayer', 'OppPlayerCode', 'Season']
     _conversions = {
-        2: Ingester._date_conversion,
-        5: Ingester._home_conversion,
-        7: Ingester._winloss_conversion,
-        12: Ingester._percent_conversion,
-        15: Ingester._percent_conversion,
-        18: Ingester._percent_conversion,
-        29: Ingester._plusminus_conversion
+        2: _date_conversion,
+        5: _home_conversion,
+        7: _winloss_conversion,
+        12: _percent_conversion,
+        15: _percent_conversion,
+        18: _percent_conversion,
+        29: _plusminus_conversion
     }
     _url = 'http://www.basketball-reference.com/play-index/h2h_finder.cgi'
     _regular_id, _playoff_id = '#stats_games', '#stats_games_playoffs'
 
-    def __init__(self, player_combo):
+    def __init_(self, player_combo):
         self.player_one_code, self.player_two_code = player_combo
         self._payload = {'p1': self.player_one_code, 'p2': self.player_two_code, 'request': 1}
         # MainPlayerCode, MainPlayer, OppPlayerCode, OppPlayerCode, Season
@@ -145,34 +147,33 @@ class PlayerIngester(object):
     _date_regex = re.compile('\d{4}-\d{2}')
 
     def __init__(self, letter):
-        self.letter = letter
+        self._letter = letter
 
     def find(self):
         """Finds the home urls for all players whose last names start with a particular letter."""
         # Current players are noted with bold text.
-        letter_page = requests.get("{self.br_url}/players/{self.letter}".format(self=self)).text
+        letter_page = requests.get("{self._br_url}/players/{self._letter}".format(self=self)).text
         letter_d = pq(letter_page)
         current_names = letter_d('strong').items()
-        db.players.insert(map(create_player_dict, current_names))
+        db.players.insert(map(self._create_player_dict, current_names))
 
     @classmethod
     def _get_gamelog_urls(cls, player_url):
         """Returns list of gamelog urls with every year for one player."""
         player_page = requests.get(player_url).text
-        player_d = pq(player_page)
-        totals_table = player_d('#totals')
-        all_tables = totals_table('.full_table').items()
-        return [cls.br_url + link.attr('href')
-                for table in all_tables
+        tables = pq(player_page)('#totals')('.full_table').items()
+        return [cls._br_url + link.attr('href')
+                for table in tables
                 for link in table('td')('a').items()
-                if cls._date_regex.match(link.text())]
+                if cls._date_regex.match(str(link.text()))]
 
     @classmethod
     def _create_player_dict(cls, name):
         """Create a dictionary for a player to enter into the database."""
+        print name.text()
         player_url = cls._br_url + name('a').attr('href')
         return {
-            'Player': name.text(),
+            'Player': str(name.text()),
             'GamelogURLs': cls._get_gamelog_urls(player_url),
             'URL': player_url
         }
