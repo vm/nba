@@ -5,10 +5,11 @@ from urlparse import urlparse
 
 import arrow
 import requests
+from funcy import without
 from pyquery import PyQuery as pq
 
 from app import db
-from utils import Conversions, is_number, find_player_name
+from utils import Conversions, is_number, find_player_name, multiple_replace
 
 
 class Ingester(object):
@@ -35,8 +36,8 @@ class Ingester(object):
     @staticmethod
     def _get_header_add(table):
         """Finds and returns the header of a table."""
-        replacer = lambda th: th.replace('%', 'P').replace('3', 'T').replace('+/-', 'PlusMinus')
-        titles = [replacer(str(th.text())) for th in table('th').items()]
+        replacers = {'%': 'P', '3': 'T', '+/-': 'PlusMinus'}
+        titles = (multiple_replace(str(th.text()), replacers) for th in table('th').items())
         return list(unique_everseen(titles))
 
     @classmethod
@@ -45,7 +46,7 @@ class Ingester(object):
         header = cls._initial_header + header_add
         header[9] = 'Home'
         header.insert(11, 'WinLoss')
-        return filter(lambda title: title not in {'FGP', 'FTP', 'TPP'}, header)
+        return without(header, 'FGP', 'FTP', 'TPP')
 
     def _table_to_db(self, season, table, header):
         """Adds all gamelogs in a table to the database."""
