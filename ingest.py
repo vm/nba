@@ -56,7 +56,6 @@ class Ingester(object):
             cols = row('td').items()
             stat_values = (
                 self._initial_stat_values + [season] + self._stat_values_parser(cols, season))
-            if len(stat_values) > len(self._initial_stat_values) + 1:
                 gamelogs.append(dict(izip(header, stat_values)))
         self._gamelogs_insert(gamelogs)
 
