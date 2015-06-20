@@ -129,6 +129,7 @@ class HeadtoheadIngester(Ingester):
     def _update_gamelog_keys(self, gamelog):
         """Removes Player key and switches MainPlayerCode and OppPlayerCode keys if the
         MainPlayerCode is not player_code."""
+        # @TODO This is so sad.
         gamelog.pop('Player', None)
         if self.player_one_code != gamelog['MainPlayerCode']:
             changer = lambda title: title.replace('Main', 'Opp').replace('Opp', 'Main')
