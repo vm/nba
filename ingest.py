@@ -8,13 +8,7 @@ import requests
 from pyquery import PyQuery as pq
 
 from app import db
-from utils import is_number, find_player_name
-
-_date_conversion = lambda text: arrow.get(text).datetime
-_home_conversion = lambda text: text != '@'
-_winloss_conversion = lambda text: float(_winloss_regex.match(text).group(1))
-_percent_conversion = None
-_plusminus_conversion = lambda text: float(text) if text else 0
+from utils import Conversions, is_number, find_player_name
 
 
 class Ingester(object):
@@ -85,11 +79,11 @@ class Ingester(object):
 class GamelogIngester(Ingester):
     _initial_header = ['Player', 'PlayerCode', 'Year', 'Season']
     _conversions = {
-        2: _date_conversion,
-        4: _home_conversion,
-        11: _percent_conversion,
-        14: _percent_conversion,
-        17: _percent_conversion,
+        2: Conversions.date_conversion,
+        4: Conversions.home_conversion,
+        11: Conversions.percent_conversion,
+        14: Conversions.percent_conversion,
+        17: Conversions.percent_conversion,
     }
     _payload = None
     _regular_id, _playoff_id = '#pgl_basic', '#pgl_basic_playoffs'
@@ -110,13 +104,13 @@ class GamelogIngester(Ingester):
 class HeadtoheadIngester(Ingester):
     _initial_header = ['MainPlayer', 'MainPlayerCode', 'OppPlayer', 'OppPlayerCode', 'Season']
     _conversions = {
-        2: _date_conversion,
-        5: _home_conversion,
-        7: _winloss_conversion,
-        12: _percent_conversion,
-        15: _percent_conversion,
-        18: _percent_conversion,
-        29: _plusminus_conversion
+        2: Conversions.date_conversion,
+        5: Conversions.home_conversion,
+        7: Conversions.winloss_conversion,
+        12: Conversions.percent_conversion,
+        15: Conversions.percent_conversion,
+        18: Conversions.percent_conversion,
+        29: Conversions.plusminus_conversion
     }
     _url = 'http://www.basketball-reference.com/play-index/h2h_finder.cgi'
     _regular_id, _playoff_id = '#stats_games', '#stats_games_playoffs'

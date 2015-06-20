@@ -5,6 +5,23 @@ from urlparse import urlparse
 from app import db
 
 
+class Conversions(object):
+    def date_conversion(text):
+        return arrow.get(text).datetime
+
+    def home_conversion(text):
+        return text != '@'
+
+    def winloss_conversion(text):
+        return float(_winloss_regex.match(text).group(1))
+
+    def percent_conversion(text):
+        return None
+
+    def plusminus_conversion(text):
+        return float(text) if text else 0
+
+
 def find_player_code(player):
     """Finds a player code given a player name."""
     player_dict = db.players.find_one({'Player': player})
