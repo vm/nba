@@ -1,6 +1,9 @@
 import os
+import re
 from posixpath import basename
 from urlparse import urlparse
+
+import arrow
 
 from app import db
 
@@ -16,9 +19,9 @@ class ConversionsMixin(object):
     def home_conversion(text):
         return text != '@'
 
-    @staticmethod
-    def winloss_conversion(text):
-        return float(_winloss_regex.match(text).group(1))
+    @classmethod
+    def winloss_conversion(cls, text):
+        return float(cls._winloss_regex.match(text).group(1))
 
     @staticmethod
     def percent_conversion(text):

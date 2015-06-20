@@ -1,10 +1,9 @@
 import re
-from functools import partials
-from itertools import islice, izip
+from functools import partial
+from itertools import islice
 from more_itertools import unique_everseen
 from urlparse import urlparse
 
-import arrow
 import requests
 from funcy import walk_keys, without, iwithout, zipdict
 from pyquery import PyQuery as pq
@@ -35,8 +34,8 @@ class Ingester(ConversionsMixin):
     @staticmethod
     def _get_header_add(table):
         """Finds and returns the header of a table."""
-        replacers = {'%': 'P', '3': 'T', '+/-': 'PlusMinus'}
-        titles = (multiple_replace(str(th.text()), replacers) for th in table('th').items())
+        titles = (multiple_replace(str(th.text()), {'%': 'P', '3': 'T', '+/-': 'PlusMinus'})
+                  for th in table('th').items())
         return unique_everseen(titles)
 
     @classmethod
@@ -55,7 +54,7 @@ class Ingester(ConversionsMixin):
             cols = row('td').items()
             stat_values = (self._initial_stat_values + [season] +
                            self._stat_values_parser(cols, season))
-            gamelogs.append(zipdict(header, stat_values)))
+            gamelogs.append(zipdict(header, stat_values))
         self._gamelogs_insert(gamelogs)
 
     def _stat_values_parser(self, cols, season):
@@ -118,8 +117,8 @@ class HeadtoheadIngester(Ingester):
         # @TODO This is so sad.
         gamelog.pop('Player', None)
         if self.player_one_code != gamelog['MainPlayerCode']:
-            return walk_keys(
-                partial(multiple_replace, adict={'Main': 'Opp', 'Opp': 'Main'}), gamelog)
+            return walk_keys(partial(multiple_replace, adict={'Main': 'Opp', 'Opp': 'Main'}),
+                             gamelog)
         return gamelog
 
 
@@ -151,7 +150,6 @@ class PlayerIngester(object):
     @classmethod
     def _create_player_dict(cls, name):
         """Create a dictionary for a player to enter into the database."""
-        print name.text()
         player_url = cls._br_url + name('a').attr('href')
         return {'Player': str(name.text()), 'GamelogURLs': cls._get_gamelog_urls(player_url),
                 'URL': player_url}

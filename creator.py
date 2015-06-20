@@ -3,10 +3,8 @@ from functools import partial
 from itertools import combinations
 from multiprocessing import Pool
 
-from pyquery import PyQuery as pq
-
 from app import db
-from ingest import GamelogIngester, HeadtoheadIngester
+from ingest import GamelogIngester, HeadtoheadIngester, PlayerIngester
 from utils import find_player_code
 
 def _get_items(cls, option):
