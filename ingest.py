@@ -5,14 +5,14 @@ from urlparse import urlparse
 
 import arrow
 import requests
-from funcy import without
+from funcy import walk_keys, without, iwithout, zipdict
 from pyquery import PyQuery as pq
 
 from app import db
 from utils import ConversionsMixin, is_number, find_player_name, multiple_replace
 
 
-class Ingester(object):
+class Ingester(ConversionsMixin):
     _winloss_regex = re.compile('.*?\((.*?)\)')
 
     def find(self):
@@ -38,7 +38,7 @@ class Ingester(object):
         """Finds and returns the header of a table."""
         replacers = {'%': 'P', '3': 'T', '+/-': 'PlusMinus'}
         titles = (multiple_replace(str(th.text()), replacers) for th in table('th').items())
-        return list(unique_everseen(titles))
+        return unique_everseen(titles)
 
     @classmethod
     def _create_header(cls, header_add):
@@ -54,37 +54,29 @@ class Ingester(object):
         gamelogs = []
         for row in islice(rows, 1, None):
             cols = row('td').items()
-            stat_values = (
-                self._initial_stat_values + [season] + self._stat_values_parser(cols, season))
-                gamelogs.append(dict(izip(header, stat_values)))
+            stat_values = (self._initial_stat_values + [season] +
+                           self._stat_values_parser(cols, season))
+            gamelogs.append(zipdict(header, stat_values)))
         self._gamelogs_insert(gamelogs)
 
     @classmethod
     def _stat_values_parser(cls, cols, season):
         """Returns a list of values which change or skip the col strings based on their content."""
-        values = []
-        for i, col in enumerate(cols):
+        def get_val(i, col):
             text = str(col.text())
             conversion = cls._conversions.get(i)
             if conversion:
-                values.append(conversion(text))
-            else:
-                if is_number(text):
-                    values.append(float(text))
-                else:
-                    values.append(text)
-        return values
+                return conversion(text)
+            if is_number(text):
+                return float(text)
+            return text
+        return iwithout((get_val(i, col) for i, col in enumerate(cols)), None)
 
 
 class GamelogIngester(Ingester):
     _initial_header = ['Player', 'PlayerCode', 'Year', 'Season']
-    _conversions = {
-        2: ConversionsMixin.date_conversion,
-        4: ConversionsMixin.home_conversion,
-        11: ConversionsMixin.percent_conversion,
-        14: ConversionsMixin.percent_conversion,
-        17: ConversionsMixin.percent_conversion,
-    }
+    _conversions = {2: self.date_conversion, 4: self.home_conversion, 11: self.percent_conversion,
+                    14: self.percent_conversion, 17: self.percent_conversion}
     _payload = None
     _regular_id, _playoff_id = '#pgl_basic', '#pgl_basic_playoffs'
 
@@ -103,15 +95,9 @@ class GamelogIngester(Ingester):
 
 class HeadtoheadIngester(Ingester):
     _initial_header = ['MainPlayer', 'MainPlayerCode', 'OppPlayer', 'OppPlayerCode', 'Season']
-    _conversions = {
-        2: ConversionsMixin.date_conversion,
-        5: ConversionsMixin.home_conversion,
-        7: ConversionsMixin.winloss_conversion,
-        12: ConversionsMixin.percent_conversion,
-        15: ConversionsMixin.percent_conversion,
-        18: ConversionsMixin.percent_conversion,
-        29: ConversionsMixin.plusminus_conversion
-    }
+    _conversions = {2: self.date_conversion, 5: self.home_conversion, 7: self.winloss_conversion,
+                    12: self.percent_conversion, 15: self.percent_conversion,
+                    18: self.percent_conversion, 29: self.plusminus_conversion}
     _url = 'http://www.basketball-reference.com/play-index/h2h_finder.cgi'
     _regular_id, _playoff_id = '#stats_games', '#stats_games_playoffs'
 
@@ -133,7 +119,7 @@ class HeadtoheadIngester(Ingester):
         gamelog.pop('Player', None)
         if self.player_one_code != gamelog['MainPlayerCode']:
             changer = lambda title: title.replace('Main', 'Opp').replace('Opp', 'Main')
-            return {changer(key): val for key, val in gamelog.iteritems()}
+            return walk_keys(changer, gamelog)
         return gamelog
 
 
@@ -167,9 +153,6 @@ class PlayerIngester(object):
         """Create a dictionary for a player to enter into the database."""
         print name.text()
         player_url = cls._br_url + name('a').attr('href')
-        return {
-            'Player': str(name.text()),
-            'GamelogURLs': cls._get_gamelog_urls(player_url),
-            'URL': player_url
-        }
+        return {'Player': str(name.text()), 'GamelogURLs': cls._get_gamelog_urls(player_url),
+                'URL': player_url}
 
