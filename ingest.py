@@ -79,11 +79,11 @@ class Ingester(object):
 class GamelogIngester(Ingester):
     _initial_header = ['Player', 'PlayerCode', 'Year', 'Season']
     _conversions = {
-        2: Conversions.date_conversion,
-        4: Conversions.home_conversion,
-        11: Conversions.percent_conversion,
-        14: Conversions.percent_conversion,
-        17: Conversions.percent_conversion,
+        2: ConversionsMixin.date_conversion,
+        4: ConversionsMixin.home_conversion,
+        11: ConversionsMixin.percent_conversion,
+        14: ConversionsMixin.percent_conversion,
+        17: ConversionsMixin.percent_conversion,
     }
     _payload = None
     _regular_id, _playoff_id = '#pgl_basic', '#pgl_basic_playoffs'
@@ -104,13 +104,13 @@ class GamelogIngester(Ingester):
 class HeadtoheadIngester(Ingester):
     _initial_header = ['MainPlayer', 'MainPlayerCode', 'OppPlayer', 'OppPlayerCode', 'Season']
     _conversions = {
-        2: Conversions.date_conversion,
-        5: Conversions.home_conversion,
-        7: Conversions.winloss_conversion,
-        12: Conversions.percent_conversion,
-        15: Conversions.percent_conversion,
-        18: Conversions.percent_conversion,
-        29: Conversions.plusminus_conversion
+        2: ConversionsMixin.date_conversion,
+        5: ConversionsMixin.home_conversion,
+        7: ConversionsMixin.winloss_conversion,
+        12: ConversionsMixin.percent_conversion,
+        15: ConversionsMixin.percent_conversion,
+        18: ConversionsMixin.percent_conversion,
+        29: ConversionsMixin.plusminus_conversion
     }
     _url = 'http://www.basketball-reference.com/play-index/h2h_finder.cgi'
     _regular_id, _playoff_id = '#stats_games', '#stats_games_playoffs'
