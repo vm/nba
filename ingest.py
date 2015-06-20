@@ -1,4 +1,5 @@
 import re
+from functools import partials
 from itertools import islice, izip
 from more_itertools import unique_everseen
 from urlparse import urlparse
@@ -13,8 +14,6 @@ from utils import ConversionsMixin, is_number, find_player_name, multiple_replac
 
 
 class Ingester(ConversionsMixin):
-    _winloss_regex = re.compile('.*?\((.*?)\)')
-
     def find(self):
         """Adds all gamelogs from a basketball-reference url to the database."""
         page = requests.get(self._url, params=self._payload).text
@@ -118,8 +117,8 @@ class HeadtoheadIngester(Ingester):
         # @TODO This is so sad.
         gamelog.pop('Player', None)
         if self.player_one_code != gamelog['MainPlayerCode']:
-            changer = lambda title: title.replace('Main', 'Opp').replace('Opp', 'Main')
-            return walk_keys(changer, gamelog)
+            return walk_keys(
+                partial(multiple_replace, adict={'Main': 'Opp', 'Opp': 'Main'}), gamelog)
         return gamelog
 
 

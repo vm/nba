@@ -6,6 +6,8 @@ from app import db
 
 
 class ConversionsMixin(object):
+    _winloss_regex = re.compile('.*?\((.*?)\)')
+
     @staticmethod
     def date_conversion(text):
         return arrow.get(text).datetime
