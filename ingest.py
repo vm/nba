@@ -5,7 +5,7 @@ from more_itertools import unique_everseen
 from urlparse import urlparse
 
 import requests
-from funcy import walk_keys, without, iwithout, zipdict
+from funcy import notnone, walk_keys, without, zipdict
 from pyquery import PyQuery as pq
 
 from app import db
@@ -38,24 +38,21 @@ class Ingester(ConversionsMixin):
                   for th in table('th').items())
         return unique_everseen(titles)
 
-    @classmethod
-    def _create_header(cls, header_add):
+    def _create_header(self, header_add):
         """Creates the initial header."""
-        header = cls._initial_header + header_add
+        header = self._initial_header + header_add
         header[9] = 'Home'
         header.insert(11, 'WinLoss')
         return without(header, 'FGP', 'FTP', 'TPP')
 
     def _table_to_db(self, season, table, header):
         """Adds all gamelogs in a table to the database."""
-        rows = table('tr').items()
-        gamelogs = []
-        for row in islice(rows, 1, None):
-            cols = row('td').items()
+        def create_gamelog(row):
             stat_values = (self._initial_stat_values + [season] +
-                           self._stat_values_parser(cols, season))
-            gamelogs.append(zipdict(header, stat_values))
-        self._gamelogs_insert(gamelogs)
+                           self._stat_values_parser(row('td').items(), season))
+            zipdict(header, stat_values)
+        # Skip header.
+        self._gamelogs_insert((create_gamelog(row) for row in islice(table('tr').items(), 1, None)))
 
     def _stat_values_parser(self, cols, season):
         """Returns a list of values which change or skip the col strings based on their content."""
@@ -67,7 +64,7 @@ class Ingester(ConversionsMixin):
             if is_number(text):
                 return float(text)
             return text
-        return iwithout((get_val(i, col) for i, col in enumerate(cols)), None)
+        return filter(notnone, (get_val(i, col) for i, col in enumerate(cols)))
 
 
 class GamelogIngester(Ingester):
@@ -81,9 +78,9 @@ class GamelogIngester(Ingester):
         # Player, PlayerCode, Year, Season
         self._initial_stat_values = [find_player_name(path_components[3]), path_components[3],
                                      path_components[5]]
-        self._conversions = {2: self.date_conversion, 4: self.home_conversion,
-                             11: self.percent_conversion, 14: self.percent_conversion,
-                             17: self.percent_conversion}
+        self._conversions = {2: self._date_conversion, 4: self._home_conversion,
+                             11: self._percent_conversion, 14: self._percent_conversion,
+                             17: self._percent_conversion}
 
     @staticmethod
     def _gamelogs_insert(gamelogs):
@@ -102,10 +99,10 @@ class HeadtoheadIngester(Ingester):
         # MainPlayerCode, MainPlayer, OppPlayerCode, OppPlayerCode, Season
         self._initial_stat_values = [find_player_name(self.player_one_code), self.player_one_code,
                                      find_player_name(self.player_two_code), self.player_two_code]
-        self._conversions = {2: self.date_conversion, 5: self.home_conversion,
-                             7: self.winloss_conversion, 12: self.percent_conversion,
-                             15: self.percent_conversion, 18: self.percent_conversion,
-                             29: self.plusminus_conversion}
+        self._conversions = {2: self._date_conversion, 5: self._home_conversion,
+                             7: self._winloss_conversion, 12: self._percent_conversion,
+                             15: self._percent_conversion, 18: self._percent_conversion,
+                             29: self._plusminus_conversion}
 
     def _gamelogs_insert(self, gamelogs):
         """Adds gamelogs to the database."""
@@ -137,20 +134,18 @@ class PlayerIngester(object):
         current_names = letter_d('strong').items()
         db.players.insert(map(self._create_player_dict, current_names))
 
-    @classmethod
-    def _get_gamelog_urls(cls, player_url):
+    def _get_gamelog_urls(self, player_url):
         """Returns list of gamelog urls with every year for one player."""
         player_page = requests.get(player_url).text
         tables = pq(player_page)('#totals')('.full_table').items()
-        return [cls._br_url + link.attr('href')
+        return [self._br_url + link.attr('href')
                 for table in tables
                 for link in table('td')('a').items()
-                if cls._date_regex.match(str(link.text()))]
+                if self._date_regex.match(str(link.text()))]
 
-    @classmethod
-    def _create_player_dict(cls, name):
+    def _create_player_dict(self, name):
         """Create a dictionary for a player to enter into the database."""
-        player_url = cls._br_url + name('a').attr('href')
-        return {'Player': str(name.text()), 'GamelogURLs': cls._get_gamelog_urls(player_url),
+        player_url = self._br_url + name('a').attr('href')
+        return {'Player': str(name.text()), 'GamelogURLs': self._get_gamelog_urls(player_url),
                 'URL': player_url}
 

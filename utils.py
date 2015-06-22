@@ -12,23 +12,23 @@ class ConversionsMixin(object):
     _winloss_regex = re.compile('.*?\((.*?)\)')
 
     @staticmethod
-    def date_conversion(text):
+    def _date_conversion(text):
         return arrow.get(text).datetime
 
     @staticmethod
-    def home_conversion(text):
+    def _home_conversion(text):
         return text != '@'
 
     @classmethod
-    def winloss_conversion(cls, text):
+    def _winloss_conversion(cls, text):
         return float(cls._winloss_regex.match(text).group(1))
 
     @staticmethod
-    def percent_conversion(text):
+    def _percent_conversion(text):
         return None
 
     @staticmethod
-    def plusminus_conversion(text):
+    def _plusminus_conversion(text):
         return float(text) if text else 0
 
 
