@@ -1,7 +1,6 @@
 import string
 from functools import partial
 from itertools import combinations
-from multiprocessing import Pool
 
 from app import db
 from ingest import GamelogIngester, HeadtoheadIngester, PlayerIngester
@@ -27,5 +26,5 @@ def create(collection):
         ingester = PlayerIngester
     else:
         raise NotImplementedError('Not a supported collection type.')
-    Pool(20).map(partial(_get_items, ingester), options)
+    map(partial(_get_items, ingester), options)
 
