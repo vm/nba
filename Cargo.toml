@@ -1,0 +1,10 @@
+[package]
+name = "nba-api"
+version = "0.1.0"
+authors = ["Vignesh Mohankumar <vignesh@vigneshmohankumar.com>"]
+
+[dependencies]
+chrono = "0.2.17"
+hyper = "0.7.1"
+select = "0.2.2"
+regex = "0.1"
