@@ -1,6 +1,7 @@
 import string
 from functools import partial
 from itertools import combinations
+from multiprocessing import Pool
 
 from app import db
 from ingest import GamelogIngester, HeadtoheadIngester, PlayerIngester
@@ -15,11 +16,15 @@ def _get_items(ingester, option):
 def create(collection):
     """Create a collection in the nba database."""
     if collection == 'gamelogs':
-        options = (url for player in db.players.find() for url in player['GamelogURLs'])
+        options = (
+            url
+            for player in db.players.find()
+            for url in player['GamelogURLs']
+        )
         ingester = GamelogIngester
     elif collection == 'headtoheads':
-        options = combinations(
-            (find_player_code(player['Player']) for player in db.players.find()), 2)
+        options = combinations((find_player_code(player['Player'])
+                                for player in db.players.find()), 2)
         ingester = HeadtoheadIngester
     elif collection == 'players':
         options = string.ascii_lowercase

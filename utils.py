@@ -17,7 +17,9 @@ def find_player_code(player):
 
 def find_player_name(player_code):
     """Finds a player name given a player code."""
-    return db.players.find_one({"URL": {'$regex': '.*' + player_code + '.*'}})['Player']
+    return (db.players
+            .find_one({"URL": {'$regex': '.*' + player_code + '.*'}})
+            .get('Player'))
 
 
 def multiple_replace(text, adict):
