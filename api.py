@@ -3,6 +3,8 @@ from functools import partial
 from itertools import combinations
 from multiprocessing import Pool
 
+from tqdm import tqdm
+
 from app import db
 from ingest import GamelogIngester, HeadtoheadIngester, PlayerIngester
 from utils import find_player_code
@@ -31,5 +33,6 @@ def create(collection):
         ingester = PlayerIngester
     else:
         raise NotImplementedError('Not a supported collection type.')
-    map(partial(_get_items, ingester), options)
+    for option in tqdm(options):
+        _get_items(ingester, option)
 

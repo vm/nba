@@ -229,8 +229,8 @@ class HeadtoheadIngester(Ingester):
             'OppPlayerCode',
             'Season'
         ]
-        self._url = 'http://www.basketball-reference.com/play-index/'
-                    'h2h_finder.cgi'
+        self._url = ('http://www.basketball-reference.com/play-index/'
+                     'h2h_finder.cgi')
         self._regular_id = 'stats_games'
         self._playoff_id = 'stats_games_playoffs'
 
