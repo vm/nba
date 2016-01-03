@@ -35,4 +35,3 @@ def create(collection):
         raise NotImplementedError('Not a supported collection type.')
     for option in tqdm(options):
         _get_items(ingester, option)
-

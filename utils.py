@@ -3,9 +3,8 @@ import re
 from posixpath import basename
 from urlparse import urlparse
 
-import arrow
-
 from app import db
+
 
 def find_player_code(player):
     """Finds a player code given a player name."""
@@ -23,8 +22,7 @@ def find_player_name(player_code):
 
 
 def multiple_replace(text, adict):
-    rx = re.compile('|'.join(map(re.escape, adict)))
     def one_xlat(match):
         return adict[match.group(0)]
+    rx = re.compile('|'.join(map(re.escape, adict)))
     return rx.sub(one_xlat, text)
-
