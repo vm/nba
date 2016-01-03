@@ -3,7 +3,7 @@
 ### Installation
 Clone the repo.
 ```shell
-git clone https://github.com/vm/nba-api.git
+git clone https://github.com/vm/nba.git
 ```
 
 Install python requirements.
@@ -13,7 +13,15 @@ pip install -r requirements.txt
 
 Create all the data.
 ```python
-from creator import *
+from api import create
 
-GamelogCreator().create()
+create('players')  # Must create players first.
+create('gamelogs')
+create('headtoheads')  # This will never finish, for now. Working on it.
+```
+
+To use the data, open `mongo` shell.
+```mongo
+use nba;
+db.gamelogs.find({ 'Pts': 81 });
 ```
